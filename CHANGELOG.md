@@ -2,6 +2,33 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.1.7](https://github.com/DEgITx/rats-search/compare/v2.1.6...v2.1.7) (2026-07-27)
+
+
+### 🐛 Bug Fixes
+
+
+- **core:** Update librats to latest([d795910](https://github.com/DEgITx/rats-search/commit/d795910a22060726bcde71957ac6cce1aa8a301e)) by @DEgITx
+
+
+### 📚 Documentation
+
+
+- Update CHANGELOG.md for v2.1.6([bae5fba](https://github.com/DEgITx/rats-search/commit/bae5fba2407de4ce85bcf2708274d4d7ece0417d)) by @github-actions[bot]
+
+
+
+
+### 👥 Contributors
+
+
+
+- [@DEgITx](https://github.com/DEgITx) — 1 commit
+
+
+- [@github-actions[bot]](https://github.com/github-actions[bot]) — 1 commit
+
+
 ## [2.1.6](https://github.com/DEgITx/rats-search/compare/v2.1.5...v2.1.6) (2026-07-19)
 
 
