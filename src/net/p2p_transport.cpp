@@ -9,21 +9,21 @@
 #undef emit
 #undef slots
 #undef signals
-#include "dht/dht.h"
-#include "node/node.h"
-#include "peer/peer.h"
-#include "peer/peer_id.h"
-#include "subsystems/dht_discovery.h"
-#include "subsystems/mdns_discovery.h"
-#include "subsystems/message_json.h"
-#include "subsystems/port_mapping_service.h"
-#include "subsystems/reconnection.h"
-#include "util/json.h"
+#include "librats/dht/dht.h"
+#include "librats/node/node.h"
+#include "librats/peer/peer.h"
+#include "librats/peer/peer_id.h"
+#include "librats/subsystems/dht_discovery.h"
+#include "librats/subsystems/mdns_discovery.h"
+#include "librats/subsystems/message_json.h"
+#include "librats/subsystems/port_mapping_service.h"
+#include "librats/subsystems/reconnection.h"
+#include "librats/util/json.h"
 #ifdef RATS_SEARCH_FEATURES
-#include "subsystems/bittorrent.h"
+#include "librats/subsystems/bittorrent.h"
 #endif
 #ifdef RATS_STORAGE
-#include "storage/storage.h"
+#include "librats/storage/storage.h"
 #endif
 #pragma pop_macro("signals")
 #pragma pop_macro("slots")

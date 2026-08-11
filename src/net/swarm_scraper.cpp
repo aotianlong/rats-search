@@ -15,8 +15,8 @@
 #undef emit
 #undef slots
 #undef signals
-#include "bittorrent/tracker.h"
-#include "bittorrent/types.h"
+#include "librats/bittorrent/tracker.h"
+#include "librats/bittorrent/types.h"
 #pragma pop_macro("signals")
 #pragma pop_macro("slots")
 #pragma pop_macro("emit")

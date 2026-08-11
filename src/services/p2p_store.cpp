@@ -13,8 +13,8 @@
 #pragma push_macro("emit")
 #undef emit
 #ifdef RATS_STORAGE
-#include "storage/storage.h"
-#include "util/json.h"
+#include "librats/storage/storage.h"
+#include "librats/util/json.h"
 #endif
 #pragma pop_macro("emit")
 

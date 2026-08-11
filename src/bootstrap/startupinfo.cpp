@@ -1,7 +1,7 @@
 #include "startupinfo.h"
 #pragma push_macro("emit")
 #undef emit
-#include "util/os.h"
+#include "librats/util/os.h"
 #pragma pop_macro("emit")
 #include "version.h"
 

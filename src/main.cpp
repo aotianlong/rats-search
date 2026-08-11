@@ -15,7 +15,7 @@
 #include "bootstrap/legacymigration.h"
 #include "bootstrap/startupinfo.h"
 #include "mainwindow.h"
-#include "util/logger.h"
+#include "librats/util/logger.h"
 #include "version.h"
 
 #ifdef _WIN32

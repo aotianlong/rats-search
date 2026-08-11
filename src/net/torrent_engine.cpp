@@ -13,12 +13,12 @@
 #undef slots
 #undef signals
 #ifdef RATS_SEARCH_FEATURES
-#include "bittorrent/client.h"
-#include "bittorrent/torrent.h"
-#include "bittorrent/torrent_creator.h"
-#include "bittorrent/torrent_info.h"
-#include "bittorrent/types.h"
-#include "subsystems/bittorrent.h"
+#include "librats/bittorrent/client.h"
+#include "librats/bittorrent/torrent.h"
+#include "librats/bittorrent/torrent_creator.h"
+#include "librats/bittorrent/torrent_info.h"
+#include "librats/bittorrent/types.h"
+#include "librats/subsystems/bittorrent.h"
 #endif
 #pragma pop_macro("signals")
 #pragma pop_macro("slots")
