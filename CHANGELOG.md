@@ -2,6 +2,39 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.1.8](https://github.com/DEgITx/rats-search/compare/v2.1.7...v2.1.8) (2026-08-11)
+
+
+### 🐛 Bug Fixes
+
+
+- **torrent:** Fix downloading of torrent while checking torrent([a6cd25a](https://github.com/DEgITx/rats-search/commit/a6cd25ac0b7c9075fba44c3b4e78aabb65aa9576)) by @DEgITx
+
+
+### 📚 Documentation
+
+
+- Update CHANGELOG.md for v2.1.7([979ddb0](https://github.com/DEgITx/rats-search/commit/979ddb071d5044ceaeafdbcacfc5778da505b756)) by @github-actions[bot]
+
+
+### 🚀 Features
+
+
+- **core:** Upgrade to new librats lib with new namespace([02a86c1](https://github.com/DEgITx/rats-search/commit/02a86c15ba91cf16d60df5651f569f16e1885e4f)) by @DEgITx
+
+
+
+
+### 👥 Contributors
+
+
+
+- [@DEgITx](https://github.com/DEgITx) — 2 commits
+
+
+- [@github-actions[bot]](https://github.com/github-actions[bot]) — 1 commit
+
+
 ## [2.1.7](https://github.com/DEgITx/rats-search/compare/v2.1.6...v2.1.7) (2026-07-27)
 
 
