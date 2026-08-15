@@ -35,6 +35,12 @@ add_rats_test(test_content_classifier ${CMAKE_SOURCE_DIR}/resources/resources.qr
 # data layer (Manticore + Database + TorrentRepository).
 add_rats_test(test_manticore_queries)
 
+# With RATS_SEARCH_BUILD_MANTICORE=ON the daemon this test spawns is built from sources
+# into ${CMAKE_BINARY_DIR}/imports/<platform>/<arch>/ — make sure it exists before the test runs.
+if(TARGET manticore)
+    add_dependencies(test_manticore_queries manticore)
+endif()
+
 # Copy libmysql.dll next to test executables so the QMYSQL driver can load
 if(WIN32)
     set(LIBMYSQL_PATH "${CMAKE_SOURCE_DIR}/imports/win/x64/libmysql.dll")

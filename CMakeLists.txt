@@ -87,6 +87,13 @@ configure_file(
     @ONLY
 )
 
+# Project cmake modules (cmake/Manticore.cmake and friends)
+list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
+
+# Manticore Search: prebuilt binaries from imports/ by default, source build behind
+# RATS_SEARCH_BUILD_MANTICORE (the module declares that option and its settings).
+include(Manticore)
+
 # Option to build with system librats or bundled version
 option(RATS_SEARCH_USE_SYSTEM_LIBRATS "Use system-installed librats" OFF)
 option(RATS_SEARCH_BUILD_TESTS "Build tests" OFF)
@@ -278,11 +285,30 @@ target_include_directories(${PROJECT_NAME} PRIVATE
     ${CMAKE_CURRENT_BINARY_DIR}
 )
 
+# Manticore Search daemon built from sources alongside the app. The binaries land in
+# ${CMAKE_BINARY_DIR}/imports/<platform>/<arch>/, which is exactly where
+# data::Manticore::findSearchdPath() probes before falling back to the imports/ submodule,
+# so a source-built searchd always wins over the prebuilt one for this build tree.
+if(RATS_SEARCH_BUILD_MANTICORE)
+    rats_add_manticore()
+    add_dependencies(${PROJECT_NAME} manticore)
+endif()
+
 # Installation
 install(TARGETS ${PROJECT_NAME}
     BUNDLE DESTINATION .
     RUNTIME DESTINATION bin
 )
+
+# Ship the source-built daemon next to the application binary.
+if(RATS_SEARCH_BUILD_MANTICORE)
+    if(APPLE)
+        set(RATS_MANTICORE_INSTALL_DIR "RatsSearch.app/Contents/MacOS")
+    else()
+        set(RATS_MANTICORE_INSTALL_DIR "bin")
+    endif()
+    install(PROGRAMS ${RATS_MANTICORE_BINARIES} DESTINATION ${RATS_MANTICORE_INSTALL_DIR})
+endif()
 
 # Qt deployment
 get_target_property(QMAKE_EXECUTABLE Qt6::qmake IMPORTED_LOCATION)
@@ -351,6 +377,12 @@ message(STATUS "Git: ${GIT_DESCRIBE}")
 message(STATUS "Qt6 version: ${Qt6_VERSION}")
 message(STATUS "Build type: ${CMAKE_BUILD_TYPE}")
 message(STATUS "Using system librats: ${RATS_SEARCH_USE_SYSTEM_LIBRATS}")
+message(STATUS "Build Manticore from sources: ${RATS_SEARCH_BUILD_MANTICORE}")
+if(RATS_SEARCH_BUILD_MANTICORE)
+    message(STATUS "  Manticore sources: ${RATS_MANTICORE_SOURCE_DESC}")
+    message(STATUS "  Manticore output: ${RATS_MANTICORE_OUTPUT_DIR}")
+    message(STATUS "  Manticore minimal build: ${RATS_MANTICORE_MINIMAL}")
+endif()
 message(STATUS "Build tests: ${RATS_SEARCH_BUILD_TESTS}")
 message(STATUS "AddressSanitizer: ${RATS_ENABLE_ASAN}")
 message(STATUS "ThreadSanitizer: ${RATS_ENABLE_TSAN}")

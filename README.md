@@ -112,6 +112,38 @@ The executable will be in `build/bin/`.
 |--------|---------|-------------|
 | `RATS_SEARCH_BUILD_TESTS` | ON | Build unit tests |
 | `RATS_SEARCH_USE_SYSTEM_LIBRATS` | OFF | Use system-installed librats |
+| `RATS_SEARCH_BUILD_MANTICORE` | OFF | Build the Manticore Search daemon from sources instead of using the prebuilt binaries in `imports/` |
+
+### Building Manticore from Source
+
+By default the bundled Manticore Search daemon comes from the `imports/` submodule as a prebuilt
+binary. To compile it from the upstream sources with the same toolchain as the application — useful
+for platforms `imports/` has no binary for, or when the prebuilt daemon does not match the target
+system:
+
+```bash
+cmake -B build -G "Ninja" -DCMAKE_BUILD_TYPE=Release -DRATS_SEARCH_BUILD_MANTICORE=ON
+cmake --build build --config Release
+```
+
+Additional prerequisites: **bison**, **flex** (Manticore generates its SQL grammars at build time),
+**Boost** 1.71+ (`context`, `filesystem`) and network access — Manticore's own build downloads its
+bundled dependencies. Install them with `apt install bison flex libboost-context-dev
+libboost-filesystem-dev`, `brew install bison flex boost`, or on Windows
+`choco install winflexbison3` plus `vcpkg install boost-context boost-filesystem`.
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `RATS_MANTICORE_TAG` | `release-17.5.1` | Manticore git tag to build |
+| `RATS_MANTICORE_SOURCE_DIR` | — | Local Manticore source tree to build instead of cloning (offline builds) |
+| `RATS_MANTICORE_MINIMAL` | ON | Disable the optional Manticore features Rats Search does not use (stemmer, RE2, jieba, SSL, zlib, expat, MySQL/ODBC/PostgreSQL sources, …). ICU stays enabled — Manticore 17.5.x does not link without it |
+| `RATS_MANTICORE_BUILD_TYPE` | `RelWithDebInfo` | Build type of the daemon — independent of the application's, and the only configuration Manticore builds its bundled dependencies for |
+| `RATS_MANTICORE_CACHE_DIR` | — | Where Manticore keeps its downloaded/prebuilt dependencies; point it outside the build tree to survive a clean build |
+| `RATS_MANTICORE_BUILD_TOOLS` | OFF | Also build `indexer`/`indextool`/`spelldump`/`wordbreaker` |
+| `RATS_MANTICORE_CMAKE_ARGS` | — | Extra `-D` arguments forwarded to the Manticore build |
+
+The daemon is built into `build/imports/<platform>/<arch>/`, which the application probes before the
+prebuilt `imports/` copy, and is installed next to the `RatsSearch` binary.
 
 ## Running
 
