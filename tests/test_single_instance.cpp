@@ -1,6 +1,9 @@
 #include <QSignalSpy>
 #include <QTemporaryDir>
+#include <QThread>
 #include <QtTest/QtTest>
+
+#include <memory>
 
 #include "bootstrap/single_instance.h"
 
@@ -74,9 +77,19 @@ void TestSingleInstance::secondLaunchNotifiesTheRunningInstance()
 
     SingleInstanceGuard secondary(dir.path());
     QVERIFY(!secondary.tryAcquire());
-    QVERIFY(secondary.notifyRunningInstance(2000));
+
+    // In production the two guards live in different processes; here they share a
+    // thread, and the ping blocks until the primary's activation server accepts it
+    // — which only happens once this thread reaches its event loop. Sending from a
+    // worker thread breaks that deadlock (on Windows it is a hard hang: the named
+    // pipe write never completes until the server side is accepted).
+    bool notified = false;
+    std::unique_ptr<QThread> sender(QThread::create([&] { notified = secondary.notifyRunningInstance(2000); }));
+    sender->start();
 
     QVERIFY(spy.wait(2000));
+    QVERIFY(sender->wait(2000));
+    QVERIFY(notified);
     QCOMPARE(spy.count(), 1);
 }
 
