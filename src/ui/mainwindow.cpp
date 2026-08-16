@@ -54,6 +54,7 @@
 #include <QFile>
 #include <QFileDialog>
 #include <QFileInfo>
+#include <QFontMetrics>
 #include <QHBoxLayout>
 #include <QHeaderView>
 #include <QJsonArray>
@@ -67,6 +68,7 @@
 #include <QProgressBar>
 #include <QPushButton>
 #include <QRegularExpression>
+#include <QResizeEvent>
 #include <QSettings>
 #include <QSplitter>
 #include <QStandardPaths>
@@ -383,17 +385,75 @@ void MainWindow::setupStatusBar()
     torrentCountLabel = new QLabel(tr("📦 Torrents: %1").arg(0));
     spiderStatusLabel = new QLabel(tr("🕷️ Spider: Idle"));
 
+    // Transient status text gets its own slot at the right end of the bar. It is
+    // free to shrink (Ignored policy + elision) so a long torrent name never
+    // pushes the counters around, and nothing here ever calls
+    // QStatusBar::showMessage(), which would hide the counters instead.
+    statusMessageLabel = new QLabel();
+    statusMessageLabel->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+    statusMessageLabel->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+
+    statusMessageTimer_ = new QTimer(this);
+    statusMessageTimer_->setSingleShot(true);
+    connect(statusMessageTimer_, &QTimer::timeout, this, &MainWindow::clearStatusMessage);
+
     statusBar()->addWidget(p2pStatusLabel);
     statusBar()->addWidget(peerCountLabel);
     statusBar()->addWidget(dhtNodeCountLabel);
     statusBar()->addWidget(torrentCountLabel);
     statusBar()->addWidget(spiderStatusLabel);
-    statusBar()->addPermanentWidget(new QLabel(tr("Ready")));
+    statusBar()->addWidget(statusMessageLabel, 1);
 
     // Periodic network status refresh (DHT node count etc.)
     statusUpdateTimer_ = new QTimer(this);
     connect(statusUpdateTimer_, &QTimer::timeout, this, &MainWindow::updateNetworkStatus);
     statusUpdateTimer_->start(30000);
+}
+
+void MainWindow::showStatusMessage(const QString& message, int timeoutMs)
+{
+    if (!statusMessageLabel)
+        return;
+
+    statusMessageText_ = message;
+    statusMessageLabel->setToolTip(message);
+    updateStatusMessageElide();
+
+    if (timeoutMs > 0)
+        statusMessageTimer_->start(timeoutMs);
+    else
+        statusMessageTimer_->stop();
+}
+
+void MainWindow::clearStatusMessage()
+{
+    statusMessageText_.clear();
+    if (statusMessageLabel) {
+        statusMessageLabel->clear();
+        statusMessageLabel->setToolTip(QString());
+    }
+}
+
+void MainWindow::updateStatusMessageElide()
+{
+    if (!statusMessageLabel)
+        return;
+
+    const int width = statusMessageLabel->width();
+    if (width <= 0 || statusMessageText_.isEmpty()) {
+        statusMessageLabel->setText(statusMessageText_);
+        return;
+    }
+    statusMessageLabel->setText(
+        statusMessageLabel->fontMetrics().elidedText(statusMessageText_, Qt::ElideRight, width));
+}
+
+void MainWindow::resizeEvent(QResizeEvent* event)
+{
+    QMainWindow::resizeEvent(event);
+    // The message slot shrinks with the window — re-elide so the counters to its
+    // left keep their space.
+    updateStatusMessageElide();
 }
 
 void MainWindow::wireWidgets()
@@ -508,7 +568,7 @@ void MainWindow::connectDetailsSignals()
     connect(detailsPanel, &TorrentDetailsPanel::downloadCancelRequested, this, [this](const QString& hash) {
         if (app_->downloads()) {
             app_->downloads()->remove(hash, /*saveResumeData*/ false);
-            statusBar()->showMessage(tr("Download cancelled"), 2000);
+            showStatusMessage(tr("Download cancelled"), 2000);
         }
     });
 }
@@ -606,7 +666,7 @@ void MainWindow::connectServiceSignals()
                 QMessageBox::warning(this, tr("Export Torrent"), tr("Could not export the torrent.\n\n%1").arg(reason));
             });
         connect(exporter, &rats::service::TorrentExporter::statusMessage, this,
-            [this](const QString& message, int timeoutMs) { statusBar()->showMessage(message, timeoutMs); });
+            [this](const QString& message, int timeoutMs) { showStatusMessage(message, timeoutMs); });
     }
 
     // Background data migrations run (in a worker thread) while the window is up
@@ -625,7 +685,7 @@ void MainWindow::connectServiceSignals()
                         .arg(migrationId, error));
             });
         connect(migrations, &rats::service::MigrationService::allMigrationsCompleted, this,
-            [this]() { statusBar()->showMessage(tr("Data migration complete"), 4000); });
+            [this]() { showStatusMessage(tr("Data migration complete"), 4000); });
     }
 }
 
@@ -687,7 +747,7 @@ void MainWindow::performSearch(const QString& query)
 
     currentSearchQuery_ = query;
     qInfo() << "Search started:" << query.left(50) << (query.length() > 50 ? "..." : "");
-    statusBar()->showMessage(tr("🔍 Searching..."), 2000);
+    showStatusMessage(tr("🔍 Searching..."), 2000);
 
     tabWidget->setCurrentIndex(0); // switch to Search Results
 
@@ -718,14 +778,14 @@ void MainWindow::performSearch(const QString& query)
     if (app_->search())
         hits = app_->search()->searchTorrents(req);
     searchResultModel->setResults(hits);
-    statusBar()->showMessage(tr("✅ Found %1 torrents").arg(hits.size()), 3000);
+    showStatusMessage(tr("✅ Found %1 torrents").arg(hits.size()), 3000);
 
     // Local file search — merged in as file-match results.
     if (app_->search()) {
         QVector<SearchHit> fileHits = app_->search()->searchFiles(req);
         if (!fileHits.isEmpty()) {
             searchResultModel->addFileResults(fileHits);
-            statusBar()->showMessage(
+            showStatusMessage(
                 tr("✅ Found %1 total results (incl. file matches)").arg(searchResultModel->resultCount()), 3000);
         }
     }
@@ -758,7 +818,7 @@ void MainWindow::performSearch(const QString& query)
                     SearchHit hit;
                     hit.torrent = t;
                     searchResultModel->addResult(hit);
-                    statusBar()->showMessage(tr("✅ Found torrent via DHT"), 3000);
+                    showStatusMessage(tr("✅ Found torrent via DHT"), 3000);
                 }
             });
     }
@@ -862,7 +922,7 @@ void MainWindow::dropEvent(QDropEvent* event)
                     QJsonObject data = response.data().toObject();
                     QString name = data["name"].toString();
                     bool alreadyExists = data["alreadyExists"].toBool();
-                    statusBar()->showMessage(
+                    showStatusMessage(
                         alreadyExists ? tr("Already indexed: %1").arg(name) : tr("Added: %1").arg(name), 2000);
                     // Auto-favorite imported torrents.
                     Torrent t = codec::torrentFromJson(data);
@@ -874,7 +934,7 @@ void MainWindow::dropEvent(QDropEvent* event)
             });
     }
 
-    statusBar()->showMessage(tr("Processing %1 torrent file(s)...").arg(torrentFiles.size()), 3000);
+    showStatusMessage(tr("Processing %1 torrent file(s)...").arg(torrentFiles.size()), 3000);
 }
 
 // ============================================================================
@@ -1036,7 +1096,7 @@ void MainWindow::onDownloadRequested(const QString& hash)
         qInfo() << "Starting download:" << hash.left(16) << "to:" << downloadPath;
         bool ok = app_->downloads()->add(hash, downloadPath);
         if (ok) {
-            statusBar()->showMessage(tr("⬇️ Download started"), 2000);
+            showStatusMessage(tr("⬇️ Download started"), 2000);
             if (detailsPanel && detailsPanel->currentHash() == hash)
                 detailsPanel->setDownloadProgress(0.0, 0, 0, 0);
         } else {
@@ -1059,7 +1119,7 @@ void MainWindow::showTorrentContextMenu(const QPoint& pos)
 
     QMenu contextMenu(this);
     rats::ui::addTorrentActions(
-        &contextMenu, this, torrent, [this](const QString& message) { statusBar()->showMessage(message, 2000); });
+        &contextMenu, this, torrent, [this](const QString& message) { showStatusMessage(message, 2000); });
 
     contextMenu.addSeparator();
 
@@ -1069,13 +1129,13 @@ void MainWindow::showTorrentContextMenu(const QPoint& pos)
             QAction* removeFavAction = contextMenu.addAction(tr("★ Remove from Favorites"));
             connect(removeFavAction, &QAction::triggered, [this, torrent]() {
                 app_->favorites()->remove(torrent.hash);
-                statusBar()->showMessage(tr("Removed from favorites"), 2000);
+                showStatusMessage(tr("Removed from favorites"), 2000);
             });
         } else {
             QAction* addFavAction = contextMenu.addAction(tr("⭐ Add to Favorites"));
             connect(addFavAction, &QAction::triggered, [this, torrent]() {
                 addToFavorites(torrent);
-                statusBar()->showMessage(tr("Added to favorites: %1").arg(torrent.name), 2000);
+                showStatusMessage(tr("Added to favorites: %1").arg(torrent.name), 2000);
             });
         }
     }
@@ -1129,7 +1189,7 @@ void MainWindow::onExportReady(const QString& hash, const QString& name, const Q
         QMessageBox::critical(this, tr("Export Torrent"), tr("Failed to save torrent to:\n%1").arg(destination));
         return;
     }
-    statusBar()->showMessage(tr("Torrent exported to %1").arg(destination), 4000);
+    showStatusMessage(tr("Torrent exported to %1").arg(destination), 4000);
 }
 
 void MainWindow::onMigrationProgress(const QString& migrationId, qint64 current, qint64 total)
@@ -1138,14 +1198,13 @@ void MainWindow::onMigrationProgress(const QString& migrationId, qint64 current,
     // Pull the human-readable description from the service (thread-safe).
     const auto progress = app_->migrations()->currentProgress();
     const QString what = progress.description.isEmpty() ? tr("Migrating data") : progress.description;
-    // Shown on the left message area; the permanent peer/count widgets on the
-    // right are unaffected. 0 = persist until the next progress tick /
-    // completion.
+    // Shown in the dedicated message slot; the peer/DHT/torrent counters are
+    // unaffected. 0 = persist until the next progress tick / completion.
     if (total > 0) {
         const int percent = static_cast<int>((current * 100) / total);
-        statusBar()->showMessage(tr("%1: %2 / %3 (%4%)").arg(what).arg(current).arg(total).arg(percent), 0);
+        showStatusMessage(tr("%1: %2 / %3 (%4%)").arg(what).arg(current).arg(total).arg(percent), 0);
     } else {
-        statusBar()->showMessage(tr("%1…").arg(what), 0);
+        showStatusMessage(tr("%1…").arg(what), 0);
     }
 }
 
@@ -1216,7 +1275,7 @@ void MainWindow::updateNetworkStatus()
 
 void MainWindow::onTorrentIndexed(const Torrent& torrent)
 {
-    statusBar()->showMessage(tr("📥 Indexed: %1").arg(torrent.name), 2000);
+    showStatusMessage(tr("📥 Indexed: %1").arg(torrent.name), 2000);
     // The torrent count follows the repository's statisticsChanged signal, and
     // tracker checks are driven by TrackerService (wired inside Application), so
     // nothing else to do here.
@@ -1425,7 +1484,7 @@ void MainWindow::addTorrentFile()
             QString name = data["name"].toString();
             bool alreadyExists = data["alreadyExists"].toBool();
 
-            statusBar()->showMessage(
+            showStatusMessage(
                 alreadyExists ? tr("Torrent already in index: %1").arg(name) : tr("Added to index: %1").arg(name),
                 3000);
 
@@ -1709,7 +1768,7 @@ void MainWindow::checkForUpdates()
         return;
     auto* updates = app_->updates();
 
-    statusBar()->showMessage(tr("Checking for updates..."), 3000);
+    showStatusMessage(tr("Checking for updates..."), 3000);
 
     disconnect(updates, &UpdateService::noUpdateAvailable, nullptr, nullptr);
 
@@ -1836,7 +1895,7 @@ void MainWindow::onUpdateAvailable(const QString& version, const QString& releas
 
 void MainWindow::onUpdateDownloadProgress(int percent)
 {
-    statusBar()->showMessage(tr("Downloading update: %1%").arg(percent), 1000);
+    showStatusMessage(tr("Downloading update: %1%").arg(percent), 1000);
 }
 
 void MainWindow::onUpdateReady()
@@ -1872,7 +1931,7 @@ void MainWindow::onUpdateReady()
 
 void MainWindow::onUpdateError(const QString& error)
 {
-    statusBar()->showMessage(tr("Update error: %1").arg(error), 5000);
+    showStatusMessage(tr("Update error: %1").arg(error), 5000);
 }
 
 // ============================================================================

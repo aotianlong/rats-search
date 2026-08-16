@@ -51,6 +51,7 @@ public slots:
 protected:
     void closeEvent(QCloseEvent* event) override;
     void changeEvent(QEvent* event) override;
+    void resizeEvent(QResizeEvent* event) override;
     void dragEnterEvent(QDragEnterEvent* event) override;
     void dropEvent(QDropEvent* event) override;
 
@@ -107,6 +108,14 @@ private:
     void connectPeerSignals(); // remote P2P results streamed into the UI
     void performSearch(const QString& query);
     void updateStatusBar();
+    // Transient status text (indexed torrents, downloads, migrations, …). It
+    // goes into its own status-bar slot instead of QStatusBar::showMessage(),
+    // which would hide the peer/DHT/torrent counters for the whole timeout.
+    // timeoutMs <= 0 keeps the text until the next message.
+    void showStatusMessage(const QString& message, int timeoutMs = 0);
+    void clearStatusMessage();
+    // Re-elide statusMessageText_ to the label's current width.
+    void updateStatusMessageElide();
     void applyTheme(bool darkMode);
     void setupSystemTray();
     void loadSettings();
@@ -166,6 +175,10 @@ private:
     QLabel* dhtNodeCountLabel = nullptr;
     QLabel* torrentCountLabel = nullptr;
     QLabel* spiderStatusLabel = nullptr;
+    // Transient messages live here, next to (not on top of) the counters above.
+    QLabel* statusMessageLabel = nullptr;
+    QTimer* statusMessageTimer_ = nullptr;
+    QString statusMessageText_;
     QTimer* statusUpdateTimer_ = nullptr;
 
     // Models and Delegates
