@@ -44,6 +44,10 @@ public:
     explicit MainWindow(rats::app::Application* app, QWidget* parent = nullptr);
     ~MainWindow();
 
+public slots:
+    /// Un-minimize, un-hide and focus the window (tray click, second launch).
+    void bringToFront();
+
 protected:
     void closeEvent(QCloseEvent* event) override;
     void changeEvent(QEvent* event) override;

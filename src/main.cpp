@@ -13,6 +13,7 @@
 #include "app/application.h"
 #include "app/config_store.h"
 #include "bootstrap/legacymigration.h"
+#include "bootstrap/single_instance.h"
 #include "bootstrap/startupinfo.h"
 #include "mainwindow.h"
 #include "librats/util/logger.h"
@@ -205,6 +206,19 @@ int main(int argc, char* argv[])
         qCritical() << "Failed to create data directory:" << dataDir;
         return 1;
     }
+    // Refuse to run twice on one data directory (shared Manticore, RT tables and
+    // rats.json). Must precede configureLogging(): log rotation on startup would
+    // otherwise roll the running instance's log file out from under it.
+    rats::bootstrap::SingleInstanceGuard instanceGuard(dataDir);
+    if (!instanceGuard.tryAcquire()) {
+        const QString holder = instanceGuard.runningInstanceInfo();
+        qInfo().noquote() << QStringLiteral("Rats Search is already running on %1%2 - activating it")
+                                 .arg(dataDir, holder.isEmpty() ? QString() : QStringLiteral(" (%1)").arg(holder));
+        if (!instanceGuard.notifyRunningInstance())
+            qWarning() << "Could not reach the running instance (it may still be starting up)";
+        return 0;
+    }
+
     migrateLegacyDatabase(dataDir); // one-time v1.x -> v2.0 import
     configureLogging(dataDir);
 
@@ -227,6 +241,10 @@ int main(int argc, char* argv[])
     }
 
     MainWindow window(application.get());
+    // A second launch is the user asking for the window, even when this instance
+    // is sitting minimized in the tray.
+    QObject::connect(&instanceGuard, &rats::bootstrap::SingleInstanceGuard::secondInstanceStarted, &window,
+        &MainWindow::bringToFront);
     if (!application->config()->startMinimized())
         window.show();
 

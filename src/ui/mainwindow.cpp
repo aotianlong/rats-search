@@ -1641,14 +1641,18 @@ void MainWindow::onTrayIconActivated(QSystemTrayIcon::ActivationReason reason)
 
 void MainWindow::toggleWindowVisibility()
 {
-    if (isVisible() && !isMinimized()) {
+    if (isVisible() && !isMinimized())
         hide();
-    } else {
-        show();
-        setWindowState(windowState() & ~Qt::WindowMinimized);
-        activateWindow();
-        raise();
-    }
+    else
+        bringToFront();
+}
+
+void MainWindow::bringToFront()
+{
+    show();
+    setWindowState(windowState() & ~Qt::WindowMinimized);
+    activateWindow();
+    raise();
 }
 
 void MainWindow::changeEvent(QEvent* event)

@@ -26,6 +26,10 @@ add_rats_test(test_update_service)
 add_rats_test(test_config_store)
 add_rats_test(test_filter_policy)
 
+# The single-instance guard lives in src/bootstrap (executable-only, not in
+# ratscore), so its source is compiled straight into the test.
+add_rats_test(test_single_instance ${CMAKE_SOURCE_DIR}/src/bootstrap/single_instance.cpp)
+
 # Content classifier needs the :/content/*.json Qt resources. Those live in the
 # main resources.qrc (they are not compiled into ratscore), so compile the qrc
 # straight into this test executable (CMAKE_AUTORCC is ON globally).
@@ -53,6 +57,7 @@ add_custom_target(check
     COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure
     DEPENDS test_domain test_query test_infohash test_update_service
             test_config_store test_filter_policy test_content_classifier test_manticore_queries
+            test_single_instance
     COMMENT "Running all tests..."
 )
 
