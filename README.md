@@ -190,6 +190,7 @@ After first launch, a configuration file `rats.json` will be created in the data
 | `restApi` | Enable/disable REST API |
 | `indexer` | Enable/disable DHT indexer |
 | `upnp` | Enable/disable UPnP/NAT-PMP port mapping (config-file only) |
+| `holePunch` | Enable/disable NAT hole punching, the fallback for networks where port mapping fails; also relays other peers' rendezvous (config-file only) |
 
 ## API
 

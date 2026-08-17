@@ -17,6 +17,8 @@ class PortMappingService;
 class ReconnectionService;
 class StorageManager;
 class Bittorrent;
+class PeerExchange;
+class HolePunch;
 } // namespace librats
 
 namespace rats::net {
@@ -42,6 +44,7 @@ public:
     bool isRunning() const;
 
     void setPortMappingEnabled(bool enabled);
+    void setHolePunchEnabled(bool enabled);
 
     // Peers (generic — identity and count only, no application stats)
     int peerCount() const;
@@ -75,9 +78,10 @@ private:
     struct Private;
     std::unique_ptr<Private> d_;
 
-    // Preference only; the port-mapping subsystem is attached before start(), so
-    // this takes effect on the next (re)start.
+    // Preferences only; both subsystems are attached before start(), so a change
+    // takes effect on the next (re)start.
     bool portMappingEnabled_ = true;
+    bool holePunchEnabled_ = true;
 };
 
 } // namespace rats::net

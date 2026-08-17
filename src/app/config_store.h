@@ -96,6 +96,10 @@ public:
     // is deliberately no setter — nothing in the app changes it at runtime.
     bool upnpEnabled() const;
 
+    // Config-file only, same shape: gates NAT hole punching (and relaying other
+    // peers' rendezvous), the fallback for networks where port mapping fails.
+    bool holePunchEnabled() const;
+
     // =========================================================================
     // Spider Settings
     // =========================================================================

@@ -54,7 +54,7 @@ void ConfigStore::setDefaults()
         { "p2pConnections", 10 }, { "p2pReplication", true }, { "p2pReplicationServer", true },
 
         // Indexer
-        { "indexer", true }, { "trackers", true }, { "restApi", false }, { "upnp", true },
+        { "indexer", true }, { "trackers", true }, { "restApi", false }, { "upnp", true }, { "holePunch", true },
 
         // Spider
         { "spider", QJsonObject { { "walkInterval", 100 } } },
@@ -280,6 +280,11 @@ void ConfigStore::setRestApiEnabled(bool enabled)
 bool ConfigStore::upnpEnabled() const
 {
     return config_["upnp"].toBool(true);
+}
+
+bool ConfigStore::holePunchEnabled() const
+{
+    return config_["holePunch"].toBool(true);
 }
 
 // ============================================================================

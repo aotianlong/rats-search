@@ -14,8 +14,10 @@
 #include "librats/peer/peer.h"
 #include "librats/peer/peer_id.h"
 #include "librats/subsystems/dht_discovery.h"
+#include "librats/subsystems/hole_punch.h"
 #include "librats/subsystems/mdns_discovery.h"
 #include "librats/subsystems/message_json.h"
+#include "librats/subsystems/peer_exchange.h"
 #include "librats/subsystems/port_mapping_service.h"
 #include "librats/subsystems/reconnection.h"
 #include "librats/util/json.h"
@@ -73,6 +75,8 @@ struct P2PTransport::Private {
     librats::MessageJson* messages = nullptr;
     librats::PortMappingService* portMapping = nullptr;
     librats::ReconnectionService* reconnect = nullptr;
+    librats::PeerExchange* pex = nullptr;
+    librats::HolePunch* holePunch = nullptr;
     librats::StorageManager* storage = nullptr;
     librats::Bittorrent* bittorrent = nullptr;
 
@@ -92,6 +96,8 @@ struct P2PTransport::Private {
     // Last value broadcast by the poll timer. Instance member (not a function
     // static) so multiple P2PTransport instances don't share change detection.
     int lastPeerCount = -1;
+    // Last NAT verdict logged, as librats::NatMapping. -1 = nothing logged yet.
+    int lastNatMapping = -1;
 
     int peerCount() const { return node ? static_cast<int>(node->peer_count()) : 0; }
 
@@ -174,6 +180,16 @@ void P2PTransport::Private::updatePeerCount()
     if (count != lastPeerCount) {
         emit q->peerCountChanged(count);
         lastPeerCount = count;
+    }
+
+    // The mesh's verdict on our own NAT, logged whenever it changes. It only becomes
+    // known once a couple of datagram peers have reported where they see us, and it
+    // is what decides whether hole punching can reach us at all — so it is the first
+    // thing to look at when a node stays unreachable.
+    const int mapping = static_cast<int>(node->nat_status().udp_mapping());
+    if (mapping != lastNatMapping) {
+        lastNatMapping = mapping;
+        qInfo() << "NAT mapping:" << librats::to_string(node->nat_status().udp_mapping());
     }
 }
 
@@ -264,6 +280,30 @@ bool P2PTransport::start()
             d_->reconnect = d_->node->add_subsystem(std::make_unique<librats::ReconnectionService>(rc));
         }
 
+        // NAT hole punching. Attached before PeerExchange only for readability —
+        // PEX resolves the punch capability in start(), by which point every
+        // subsystem has attached. Relaying other peers' rendezvous is on: a mesh in
+        // which nobody relays cannot punch at all, and one rendezvous costs a few
+        // dozen forwarded bytes to a peer we already hold.
+        if (holePunchEnabled_) {
+            librats::HolePunch::Config hpCfg;
+            hpCfg.enable_relay = true;
+            d_->holePunch = d_->node->add_subsystem(std::make_unique<librats::HolePunch>(std::move(hpCfg)));
+        }
+
+        // Peer exchange: peers gossip who else they hold, so the mesh keeps healing
+        // when the DHT is throttled or blocked. It is also what makes punching
+        // reachable in practice — a PEX entry carries the peer *id* an unreachable
+        // address belongs to, and a failed dial there falls back to a punch.
+        // Bounded by the same connection budget as everything else: NodeConfig's
+        // max_peers only refuses *inbound* peers, and PEX is the one discovery
+        // source that compounds — each peer it finds is asked for more peers.
+        {
+            librats::PeerExchange::Config pexCfg;
+            pexCfg.peer_target = d_->maxPeers > 0 ? static_cast<size_t>(d_->maxPeers) : 0;
+            d_->pex = d_->node->add_subsystem(std::make_unique<librats::PeerExchange>(std::move(pexCfg)));
+        }
+
 #ifdef RATS_STORAGE
         // Distributed key/value store (used by the voting system).
         {
@@ -294,6 +334,8 @@ bool P2PTransport::start()
             d_->messages = nullptr;
             d_->portMapping = nullptr;
             d_->reconnect = nullptr;
+            d_->pex = nullptr;
+            d_->holePunch = nullptr;
             d_->storage = nullptr;
             d_->bittorrent = nullptr;
             return false;
@@ -352,6 +394,8 @@ void P2PTransport::stop()
     d_->messages = nullptr;
     d_->portMapping = nullptr;
     d_->reconnect = nullptr;
+    d_->pex = nullptr;
+    d_->holePunch = nullptr;
     d_->storage = nullptr;
     d_->bittorrent = nullptr;
     d_->registeredDispatchers.clear();
@@ -375,6 +419,12 @@ void P2PTransport::setPortMappingEnabled(bool enabled)
     // Subsystems are attached before start(), so this only takes effect on the
     // next P2P (re)start. We just record the preference here.
     portMappingEnabled_ = enabled;
+}
+
+void P2PTransport::setHolePunchEnabled(bool enabled)
+{
+    // Same deal as port mapping: a preference read when the subsystems are built.
+    holePunchEnabled_ = enabled;
 }
 
 // =========================================================================

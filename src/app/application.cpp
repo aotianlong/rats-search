@@ -170,6 +170,7 @@ void Application::applyConfig()
     d_->trackers->setInfoScrapingEnabled(c->trackersEnabled());
     d_->replication->setEnabled(c->p2pReplication());
     d_->transport->setPortMappingEnabled(c->upnpEnabled());
+    d_->transport->setHolePunchEnabled(c->holePunchEnabled());
     d_->crawler->setWalkInterval(c->spiderWalkInterval());
 
     // Reflect runtime toggles of the crawler and replication. Only act once the
