@@ -2,6 +2,42 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.2.0](https://github.com/DEgITx/rats-search/compare/v2.1.8...v2.2.0) (2026-08-18)
+
+
+### 🐛 Bug Fixes
+
+
+- **ui:** Fix accidental double run([cdd476b](https://github.com/DEgITx/rats-search/commit/cdd476bfc78e348b2bf9f3e2ea7fde3413bcffac)) by @DEgITx
+- **ui:** Don't override index update in status bar over peer statistic([3442f7b](https://github.com/DEgITx/rats-search/commit/3442f7bb43c562a245ee3f604e6b1fd94f095aac)) by @DEgITx
+- **core:** Fix stuck on exit([085d328](https://github.com/DEgITx/rats-search/commit/085d3285675ba2efb710661e054d2118877457cf)) by @DEgITx
+
+
+### 📚 Documentation
+
+
+- Update CHANGELOG.md for v2.1.8([a576426](https://github.com/DEgITx/rats-search/commit/a5764261b919b33bae81f4316735e5073b28151f)) by @github-actions[bot]
+
+
+### 🚀 Features
+
+
+- **p2p:** New p2p layer for bad networks([ffa561d](https://github.com/DEgITx/rats-search/commit/ffa561d16b868ef18c22dec0a5df786f93441b97)) by @DEgITx
+- **p2p:** Enable PEX and hole punch service([77ffa21](https://github.com/DEgITx/rats-search/commit/77ffa219b92427c52586807045a6e633a7d4c3bd)) by @DEgITx
+
+
+
+
+### 👥 Contributors
+
+
+
+- [@DEgITx](https://github.com/DEgITx) — 5 commits
+
+
+- [@github-actions[bot]](https://github.com/github-actions[bot]) — 1 commit
+
+
 ## [2.1.8](https://github.com/DEgITx/rats-search/compare/v2.1.7...v2.1.8) (2026-08-11)
 
 
