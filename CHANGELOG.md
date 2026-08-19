@@ -2,6 +2,33 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.2.1](https://github.com/DEgITx/rats-search/compare/v2.2.0...v2.2.1) (2026-08-19)
+
+
+### 🐛 Bug Fixes
+
+
+- **ui:** Fix potencial peers lost([8928c96](https://github.com/DEgITx/rats-search/commit/8928c9636379e77f9c71e0907c486aa7838fd010)) by @DEgITx
+
+
+### 📚 Documentation
+
+
+- Update CHANGELOG.md for v2.2.0([8ec3a9c](https://github.com/DEgITx/rats-search/commit/8ec3a9cf80866453110df9fb8eb3bad7a881da2f)) by @github-actions[bot]
+
+
+
+
+### 👥 Contributors
+
+
+
+- [@DEgITx](https://github.com/DEgITx) — 1 commit
+
+
+- [@github-actions[bot]](https://github.com/github-actions[bot]) — 1 commit
+
+
 ## [2.2.0](https://github.com/DEgITx/rats-search/compare/v2.1.8...v2.2.0) (2026-08-18)
 
 
