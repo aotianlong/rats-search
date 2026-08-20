@@ -77,6 +77,17 @@ public:
     bool resetBinlog();
 
     /**
+     * @brief Keep the searchd-owned logs from growing without bound.
+     *
+     * Manticore never rotates its own logs, so an installation that runs for
+     * months accumulates gigabytes next to the database: deletes the obsolete
+     * query.log (query logging is no longer configured at all) and rotates
+     * searchd.log once it passes its size cap. Called from start() before the
+     * daemon opens them; exposed publicly for tests and manual maintenance.
+     */
+    void pruneLogs();
+
+    /**
      * @brief Does this searchd log line report an unusable binlog?
      *
      * Matches the fatal replay errors only ("FATAL: binlog: log missing txn

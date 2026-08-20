@@ -58,6 +58,12 @@ constexpr int kDriverFailureTerminateTimeoutMs = 3000;
 // Port search: number of alternative ports to probe when the default is busy.
 constexpr int kPortSearchAttempts = 20;
 
+// searchd.log grows for the whole lifetime of the installation — Manticore
+// rotates it only when asked to (SIGUSR1/--logreopen), which nothing here does.
+// Above this size it is rotated to searchd.log.1 at startup, so the daemon logs
+// cost at most twice this much disk.
+constexpr qint64 kMaxSearchdLogBytes = 16 * 1024 * 1024;
+
 // Connection timeout (seconds) used by the lightweight readiness probe.
 constexpr int kTestConnectTimeoutSec = 1;
 
@@ -215,6 +221,10 @@ bool Manticore::prepareDatabaseAndConfig()
         fail("Failed to generate configuration");
         return false;
     }
+
+    // Before searchd opens them — a rotate/delete of a file the daemon holds
+    // open would leave it writing to an unlinked inode.
+    pruneLogs();
     return true;
 }
 
@@ -654,6 +664,38 @@ bool Manticore::binlogFailureReported()
     return false;
 }
 
+void Manticore::pruneLogs()
+{
+    QDir dir(dataDirectory_);
+
+    // Left over from installations configured before query logging was dropped:
+    // the file is never read or rotated, and it reached gigabytes in the field.
+    const QString queryLogPath = dir.filePath(QStringLiteral("query.log"));
+    const qint64 queryLogSize = QFileInfo(queryLogPath).size();
+    if (queryLogSize > 0) {
+        if (QFile::remove(queryLogPath)) {
+            qInfo() << "Removed obsolete query.log, reclaimed" << (queryLogSize / 1024 / 1024) << "MB";
+        } else {
+            qWarning() << "Failed to remove obsolete query log:" << queryLogPath;
+        }
+    }
+
+    // searchd.log keeps the most recent window; one generation is kept back so a
+    // crash right after startup can still be traced.
+    const qint64 searchdLogSize = QFileInfo(searchdLogPath_).size();
+    if (searchdLogSize <= kMaxSearchdLogBytes) {
+        return;
+    }
+
+    const QString rotatedPath = searchdLogPath_ + ".1";
+    QFile::remove(rotatedPath); // may not exist; the rename below needs the slot free
+    if (QFile::rename(searchdLogPath_, rotatedPath)) {
+        qInfo() << "Rotated searchd.log (" << (searchdLogSize / 1024 / 1024) << "MB ) to" << rotatedPath;
+    } else {
+        qWarning() << "Failed to rotate searchd.log:" << searchdLogPath_;
+    }
+}
+
 bool Manticore::resetBinlog()
 {
     // binlog_path in the generated config is the data directory itself, and the
@@ -777,7 +819,8 @@ searchd
     unlink_old = 1
     pid_file = %3/searchd.pid
     log = %3/searchd.log
-    query_log = %3/query.log
+    # No query_log: nothing in Rats reads it, Manticore never rotates it, and
+    # every search/insert appends a line — it reached 2.5 GB in the field.
     binlog_path = %3
 }
 )")

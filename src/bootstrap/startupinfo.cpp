@@ -116,6 +116,9 @@ void logStartupInfo(const QString& dataDirectory)
     logFileSize("Config", dataDirectory + "/rats.json");
     logFileSize("Sphinx conf", dataDirectory + "/sphinx.conf");
     logFileSize("searchd.log", dataDirectory + "/searchd.log");
+    logFileSize("searchd.log.1", dataDirectory + "/searchd.log.1");
+    // query.log is no longer configured; still listed so a leftover from an
+    // older install is visible until Manticore::pruneLogs() removes it.
     logFileSize("query.log", dataDirectory + "/query.log");
     logFileSize("rats-search.log", dataDirectory + "/rats-search.log");
 

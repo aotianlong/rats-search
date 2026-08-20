@@ -25,7 +25,7 @@ add_rats_test(test_infohash)
 add_rats_test(test_update_service)
 add_rats_test(test_config_store)
 add_rats_test(test_filter_policy)
-add_rats_test(test_manticore_binlog)
+add_rats_test(test_manticore_maintenance)
 
 # The single-instance guard lives in src/bootstrap (executable-only, not in
 # ratscore), so its source is compiled straight into the test.
@@ -58,7 +58,7 @@ add_custom_target(check
     COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure
     DEPENDS test_domain test_query test_infohash test_update_service
             test_config_store test_filter_policy test_content_classifier test_manticore_queries
-            test_manticore_binlog
+            test_manticore_maintenance
             test_single_instance
     COMMENT "Running all tests..."
 )
