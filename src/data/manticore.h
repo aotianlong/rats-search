@@ -63,6 +63,29 @@ public:
      */
     bool waitForReady(int timeoutMs = 30000);
 
+    /**
+     * @brief Delete the Manticore binlog (write-ahead log) files.
+     *
+     * searchd refuses to start when its binlog cannot be replayed (truncated
+     * by a hard kill / power loss / full disk), and Manticore ships no repair
+     * tool — the only recovery is to drop the log and continue from the last
+     * on-disk RT chunks. start() calls this automatically when it detects that
+     * failure mode; exposed publicly for tests and manual maintenance.
+     *
+     * @return true if at least one binlog file was removed.
+     */
+    bool resetBinlog();
+
+    /**
+     * @brief Does this searchd log line report an unusable binlog?
+     *
+     * Matches the fatal replay errors only ("FATAL: binlog: log missing txn
+     * marker at pos=... (corrupted?)"), never the informational
+     * "binlog: replaying log ..." progress lines. Static so tests can pin the
+     * exact set of lines that trigger a reset.
+     */
+    static bool isBinlogFailureLine(const QString& line);
+
 private slots:
     void onProcessStarted();
     void onProcessFinished(int exitCode, QProcess::ExitStatus exitStatus);
@@ -92,6 +115,16 @@ private:
     bool verifyDriverAvailable();
     bool launchSearchdProcess();
 
+    // Platform-specific searchd teardown, shared by stop() and the binlog
+    // recovery restart. Leaves the process signals connected.
+    void shutdownProcess();
+
+    // True if the searchd run that just failed blamed the binlog — either on
+    // its stdout/stderr (Unix) or in the part of searchd.log written since we
+    // launched it (Windows daemon mode, where the pipes belong to the parent
+    // that already exited).
+    bool binlogFailureReported();
+
     // waitForReady() helpers.
     void sleepWithEventLoop(int intervalMs);
 
@@ -117,6 +150,7 @@ private:
     QString databasePath_;
     QString configPath_;
     QString pidFilePath_;
+    QString searchdLogPath_;
     QString searchdPath_;
     int port_;
     Status status_;
@@ -127,6 +161,11 @@ private:
     bool isExternalInstance_;
     bool isWindowsDaemonMode_;
     QString connectionName_;
+
+    // Binlog recovery state, all scoped to a single start() call.
+    bool binlogFailureSeen_ = false; // set while parsing this run's searchd output
+    bool binlogResetDone_ = false; // at most one reset+retry per start()
+    qint64 searchdLogOffset_ = 0; // size of searchd.log just before launch
 };
 
 } // namespace rats::data

@@ -103,6 +103,7 @@ Manticore::Manticore(const QString& dataDirectory, QObject* parent)
     databasePath_ = dataDirectory_ + "/database";
     configPath_ = dataDirectory_ + "/sphinx.conf";
     pidFilePath_ = dataDirectory_ + "/searchd.pid";
+    searchdLogPath_ = dataDirectory_ + "/searchd.log";
     connectionName_ = "manticore_" + QString::number(reinterpret_cast<quintptr>(this));
 
     process_ = std::make_unique<QProcess>();
@@ -237,6 +238,11 @@ bool Manticore::launchSearchdProcess()
 {
     setStatus(Status::Starting);
 
+    // Scope the binlog diagnosis to this run: anything already in searchd.log
+    // belongs to a previous launch and must not trigger a reset.
+    binlogFailureSeen_ = false;
+    searchdLogOffset_ = QFileInfo(searchdLogPath_).size();
+
     QStringList args;
     args << "--config" << configPath_;
 
@@ -269,6 +275,7 @@ bool Manticore::start()
     startupTimer.start();
 
     isWindowsDaemonMode_ = false;
+    binlogResetDone_ = false;
 
     // Fast path: attach to an already-running external instance.
     if (attachToExternalInstance(startupTimer.elapsed())) {
@@ -314,6 +321,27 @@ bool Manticore::start()
     bool ready = waitForReady(readyTimeoutMs);
     qInfo() << "waitForReady took:" << (startupTimer.elapsed() - waitStart) << "ms"
             << "(timeout was" << readyTimeoutMs << "ms)";
+
+    // A binlog that cannot be replayed is fatal for searchd and unrepairable by
+    // any Manticore tool, so a corrupted one would otherwise wedge the app on
+    // every launch forever. Drop it and start over — the RT tables come back
+    // from their last flushed on-disk chunks, only the un-flushed tail is lost.
+    if (!ready && !binlogResetDone_ && binlogFailureReported()) {
+        binlogResetDone_ = true;
+        qWarning() << "Manticore failed to replay its binlog (corrupted); resetting it and retrying startup";
+
+        shutdownProcess();
+
+        if (resetBinlog()) {
+            qint64 retryStart = startupTimer.elapsed();
+            if (launchSearchdProcess()) {
+                ready = waitForReady(readyTimeoutMs);
+                qInfo() << "Retry after binlog reset took:" << (startupTimer.elapsed() - retryStart) << "ms"
+                        << "-" << (ready ? "succeeded" : "failed");
+            }
+        }
+    }
+
     qInfo() << "Total Manticore startup:" << startupTimer.elapsed() << "ms";
 
     return ready;
@@ -342,6 +370,13 @@ void Manticore::stop()
     disconnect(process_.get(), QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished), this,
         &Manticore::onProcessFinished);
 
+    shutdownProcess();
+
+    setStatus(Status::Stopped);
+}
+
+void Manticore::shutdownProcess()
+{
 #ifdef Q_OS_WIN
     // On Windows, searchd runs as a daemon, so we need to use the stopwait
     // command regardless of QProcess state.
@@ -384,8 +419,6 @@ void Manticore::stop()
         }
     }
 #endif
-
-    setStatus(Status::Stopped);
 }
 
 bool Manticore::isRunning() const
@@ -484,6 +517,11 @@ bool Manticore::waitForReady(int timeoutMs)
             if (process_ && process_->state() == QProcess::NotRunning) {
                 QString output = process_->readAllStandardError();
                 qWarning() << "Manticore stderr:" << output;
+                for (const QString& line : output.split('\n', Qt::SkipEmptyParts)) {
+                    if (isBinlogFailureLine(line)) {
+                        binlogFailureSeen_ = true;
+                    }
+                }
                 fail("Manticore process exited unexpectedly");
                 return false;
             }
@@ -573,7 +611,80 @@ void Manticore::onProcessReadyRead()
         if (line.contains("accepting connections")) {
             qInfo() << "Manticore accepting connections";
         }
+
+        // Remember an unusable binlog — start() resets it and retries.
+        if (isBinlogFailureLine(line)) {
+            binlogFailureSeen_ = true;
+        }
     }
+}
+
+bool Manticore::isBinlogFailureLine(const QString& line)
+{
+    // Only the fatal replay errors, e.g.
+    //   FATAL: binlog: log missing txn marker at pos=3094734 (corrupted?)
+    // The routine "binlog: replaying log ..." progress lines must not match.
+    return line.contains("binlog", Qt::CaseInsensitive) && line.contains("FATAL", Qt::CaseSensitive);
+}
+
+bool Manticore::binlogFailureReported()
+{
+    if (binlogFailureSeen_) {
+        return true;
+    }
+
+    // Windows daemon mode: searchd forks and the parent we own exits, so its
+    // fatal messages never reach our pipes — read them out of searchd.log
+    // instead, starting where this run began writing.
+    QFile log(searchdLogPath_);
+    if (!log.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        return false;
+    }
+
+    // A rotated/truncated log invalidates the offset; re-read it from the top.
+    if (searchdLogOffset_ > 0 && searchdLogOffset_ <= log.size()) {
+        log.seek(searchdLogOffset_);
+    }
+
+    while (!log.atEnd()) {
+        if (isBinlogFailureLine(QString::fromUtf8(log.readLine()))) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool Manticore::resetBinlog()
+{
+    // binlog_path in the generated config is the data directory itself, and the
+    // whole set (binlog.NNN + binlog.meta + binlog.lock) is one chain — meta
+    // points at the files, so dropping only the damaged one leaves searchd
+    // looking for a log that is gone.
+    QDir dir(dataDirectory_);
+    const QStringList binlogs = dir.entryList({ QStringLiteral("binlog.*") }, QDir::Files);
+
+    if (binlogs.isEmpty()) {
+        qWarning() << "No binlog files found in" << dataDirectory_ << "- nothing to reset";
+        return false;
+    }
+
+    int removed = 0;
+    qint64 freedBytes = 0;
+    for (const QString& name : binlogs) {
+        const QString path = dir.filePath(name);
+        const qint64 size = QFileInfo(path).size();
+        if (QFile::remove(path)) {
+            removed++;
+            freedBytes += size;
+        } else {
+            qCritical() << "Failed to remove binlog file:" << path;
+        }
+    }
+
+    qWarning() << "Removed" << removed << "of" << binlogs.size() << "binlog file(s)," << (freedBytes / 1024 / 1024)
+               << "MB; transactions not yet flushed to disk are lost";
+
+    return removed > 0;
 }
 
 void Manticore::checkConnection()
