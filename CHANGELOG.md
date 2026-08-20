@@ -2,6 +2,41 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.2.3](https://github.com/DEgITx/rats-search/compare/v2.2.2...v2.2.3) (2026-08-20)
+
+
+### 🐛 Bug Fixes
+
+
+- **db:** Fix issue with binlogs which block run([430b865](https://github.com/DEgITx/rats-search/commit/430b865b01b00e2675f33ce1ef4d403872fa33fe)) by @DEgITx
+- **filters:** Fix filter cleanup https://github.com/librats/rats-search/issues/282([368980d](https://github.com/DEgITx/rats-search/commit/368980dd9604506b118ede82047a00adad222f90)) by @DEgITx
+- **windows:** Fix wsl port binding([9088fcf](https://github.com/DEgITx/rats-search/commit/9088fcfc326a06ed7455b86a5461c1e9af43e710)) by @DEgITx
+
+
+### 📚 Documentation
+
+
+- Update CHANGELOG.md for v2.2.2([e86e5e9](https://github.com/DEgITx/rats-search/commit/e86e5e9a09d4490655b764eee99da2168d9e9d2f)) by @github-actions[bot]
+
+
+### 🚀 Features
+
+
+- **log:** Fix log rotation, decreate manticore log sizing([3d4d67f](https://github.com/DEgITx/rats-search/commit/3d4d67fed946d0ac5701df32cc1a79b302e7e2c6)) by @DEgITx
+
+
+
+
+### 👥 Contributors
+
+
+
+- [@DEgITx](https://github.com/DEgITx) — 4 commits
+
+
+- [@github-actions[bot]](https://github.com/github-actions[bot]) — 1 commit
+
+
 ## [2.2.2](https://github.com/DEgITx/rats-search/compare/v2.2.1...v2.2.2) (2026-08-20)
 
 
