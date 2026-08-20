@@ -2,6 +2,33 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.2.2](https://github.com/DEgITx/rats-search/compare/v2.2.1...v2.2.2) (2026-08-20)
+
+
+### 🐛 Bug Fixes
+
+
+- **ui:** Fix problem start in linux port binded case([d016883](https://github.com/DEgITx/rats-search/commit/d016883679fccc1036a9275c7dd0c62ca99ec294)) by @DEgITx
+
+
+### 📚 Documentation
+
+
+- Update CHANGELOG.md for v2.2.1([2251fd0](https://github.com/DEgITx/rats-search/commit/2251fd05f86b774e7d80acc6c55f79ee34451a1c)) by @github-actions[bot]
+
+
+
+
+### 👥 Contributors
+
+
+
+- [@DEgITx](https://github.com/DEgITx) — 1 commit
+
+
+- [@github-actions[bot]](https://github.com/github-actions[bot]) — 1 commit
+
+
 ## [2.2.1](https://github.com/DEgITx/rats-search/compare/v2.2.0...v2.2.1) (2026-08-19)
 
 
