@@ -357,9 +357,13 @@ QVector<Torrent> TorrentRepository::random(int limit, bool includeFiles)
     return results;
 }
 
-QVector<Torrent> TorrentRepository::page(int offset, int limit)
+QVector<Torrent> TorrentRepository::pageAfterId(qint64 afterId, int limit)
 {
-    return selectTorrents(SelectQuery(kTorrents).orderBy(QStringLiteral("id"), false).limit(offset, limit).build());
+    SelectQuery builder(kTorrents);
+    if (afterId > 0)
+        builder.whereRaw(QStringLiteral("id > %1").arg(afterId));
+    builder.orderBy(QStringLiteral("id"), false).limit(0, limit);
+    return selectTorrents(builder.build());
 }
 
 // ---------------------------------------------------------------------------

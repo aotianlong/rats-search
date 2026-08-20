@@ -12,6 +12,7 @@
 #include "peer/peer_api.h"
 #include "services/download_service.h"
 #include "services/feed_service.h"
+#include "services/filter_policy.h"
 #include "services/indexing_service.h"
 #include "services/peer_registry.h"
 #include "services/search_service.h"
@@ -41,6 +42,7 @@
 #include <QDateTime>
 #include <QJsonArray>
 #include <QJsonValue>
+#include <QRegularExpression>
 #include <QStringList>
 #include <QTimer>
 #include <memory>
@@ -418,23 +420,61 @@ void ApiRouter::registerMethods()
         respond(Result::success(result));
     });
 
-    // Re-apply the current filter policy across the whole index and remove
-    // torrents that no longer pass (e.g. after tightening the adult/size
-    // filters). With dryRun=true it only counts; otherwise it removes and emits
-    // progress.
+    // Re-apply the filter policy across the whole index and remove torrents that
+    // no longer pass (e.g. after tightening the adult/size filters). With
+    // dryRun=true it only counts; otherwise it removes and emits progress.
+    // An optional "filters" object overrides the stored config key by key, so
+    // the settings dialog can preview the rules the user is still editing
+    // without persisting them first.
     add("torrent.cleanup", [this](const QJsonObject& params, const ResultCallback& respond) {
         const bool dryRun = params["dryRun"].toBool(false);
+
+        service::FilterSettings fs = app_->config()->filterSettings();
+        const QJsonObject overrides = params["filters"].toObject();
+        if (!overrides.isEmpty()) {
+            if (overrides.contains("maxFiles"))
+                fs.maxFiles = overrides["maxFiles"].toInt();
+            if (overrides.contains("sizeMin"))
+                fs.sizeMin = static_cast<qint64>(overrides["sizeMin"].toDouble());
+            if (overrides.contains("sizeMax"))
+                fs.sizeMax = static_cast<qint64>(overrides["sizeMax"].toDouble());
+            if (overrides.contains("adultFilter"))
+                fs.adultFilter = overrides["adultFilter"].toBool();
+            if (overrides.contains("namingRegExp"))
+                fs.namingRegExp = overrides["namingRegExp"].toString();
+            if (overrides.contains("namingRegExpNegative"))
+                fs.namingRegExpNegative = overrides["namingRegExpNegative"].toBool();
+            if (overrides.contains("contentType"))
+                fs.contentTypeFilter = overrides["contentType"].toString();
+        }
+
+        // An unparsable pattern would silently accept every name (FilterPolicy
+        // skips an invalid regex), which reads as "the filter does nothing".
+        if (!fs.namingRegExp.isEmpty()) {
+            const QRegularExpression re(fs.namingRegExp);
+            if (!re.isValid()) {
+                respond(Result::failure(QStringLiteral("Invalid name filter regex: %1").arg(re.errorString())));
+                return;
+            }
+        }
+
+        const service::FilterPolicy policy(fs);
         constexpr int kBatch = 500;
         const qint64 total = app_->torrents()->statistics().torrents;
         int scanned = 0;
         int matched = 0;
-        for (int offset = 0;; offset += kBatch) {
-            const QVector<domain::Torrent> batch = app_->torrents()->page(offset, kBatch);
+        // Keyset pagination: OFFSET cannot walk past Manticore's max_matches
+        // (1000), and removing rows mid-sweep would shift the rest into offsets
+        // already passed.
+        qint64 afterId = 0;
+        for (;;) {
+            const QVector<domain::Torrent> batch = app_->torrents()->pageAfterId(afterId, kBatch);
             if (batch.isEmpty())
                 break;
+            afterId = batch.last().id;
             for (const domain::Torrent& t : batch) {
                 ++scanned;
-                if (!app_->indexing()->accepts(t)) {
+                if (!policy.accepts(t)) {
                     ++matched;
                     if (!dryRun)
                         app_->torrents()->remove(t.hash);

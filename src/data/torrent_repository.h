@@ -64,7 +64,12 @@ public:
     QVector<domain::Torrent> top(const QString& type, const QString& time, int offset, int limit);
     QVector<domain::Torrent> random(int limit = 5, bool includeFiles = false);
     // A page of all torrents ordered by id — used by maintenance sweeps.
-    QVector<domain::Torrent> page(int offset, int limit);
+    // Keyset ("seek") pagination: pass 0 to start, then the id of the last row
+    // of the previous page. OFFSET paging cannot be used for a full sweep —
+    // Manticore refuses any offset >= max_matches (1000 by default) with
+    // "offset out of bounds", and rows deleted mid-sweep shift the remaining
+    // ones into the offsets already consumed.
+    QVector<domain::Torrent> pageAfterId(qint64 afterId, int limit);
 
     // Files --------------------------------------------------------------------
     QVector<domain::File> filesOf(const QString& hash);

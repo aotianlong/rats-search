@@ -1,6 +1,8 @@
 #ifndef RATS_APP_CONFIG_STORE_H
 #define RATS_APP_CONFIG_STORE_H
 
+#include "services/filter_policy.h"
+
 #include <QJsonObject>
 #include <QObject>
 #include <QVariant>
@@ -131,6 +133,12 @@ public:
 
     QString filtersContentType() const;
     void setFiltersContentType(const QString& type);
+
+    // The stored filter keys as one struct, ready for service::FilterPolicy.
+    // Application::applyConfig() and the `torrent.cleanup` API method both go
+    // through this, so a sweep judges torrents with exactly the rules the
+    // indexer applies to new ones.
+    service::FilterSettings filterSettings() const;
 
     // =========================================================================
     // Client Settings

@@ -4,6 +4,7 @@
 #include <QCheckBox>
 #include <QComboBox>
 #include <QDialog>
+#include <QJsonObject>
 #include <QLabel>
 #include <QLineEdit>
 #include <QProgressBar>
@@ -60,6 +61,11 @@ private:
     void installScrollGuard(QWidget* container);
     void loadSettings();
     void saveSettings();
+    // The content-type checkboxes as the CSV the config stores ("" = all).
+    QString selectedContentTypes() const;
+    // The filter widgets as they are right now — sent to `torrent.cleanup` so
+    // Check/Clean judge the rules being edited, not the last saved ones.
+    QJsonObject currentFilters() const;
 
     rats::app::Application* app_;
     QString dataDirectory_;

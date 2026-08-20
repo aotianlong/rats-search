@@ -48,6 +48,7 @@ private slots:
     void testTop();
     void testRemove();
     void testSelectQueryAgainstLiveIndex();
+    void testPageAfterIdWalksPastMaxMatches();
 
 private:
     // Build a valid torrent with a distinct 40-hex hash derived from `n`.
@@ -263,6 +264,42 @@ void TestManticoreQueries::testSelectQueryAgainstLiveIndex()
     QVERIFY(ok);
     // The Ubuntu torrent (111 seeders) guarantees at least one row.
     QVERIFY(!rows.isEmpty());
+}
+
+// A full-index sweep (the `torrent.cleanup` maintenance path) must be able to
+// walk past Manticore's max_matches, which rejects any OFFSET >= 1000 with
+// "offset out of bounds" — the reason the filter cleanup used to stop after the
+// first 1000 torrents.
+void TestManticoreQueries::testPageAfterIdWalksPastMaxMatches()
+{
+    constexpr int kExtra = 1200;
+    const int base = 10000;
+    for (int i = 0; i < kExtra; ++i)
+        QVERIFY(repo_->add(makeTorrent(base + i, QString("Sweep Sample %1").arg(i))));
+    QVERIFY(waitForTorrent(makeTorrent(base + kExtra - 1, "x").hash));
+
+    // Plain OFFSET paging is what breaks: prove the limit is real, so this test
+    // fails loudly if the sweep ever goes back to offsets.
+    bool ok = false;
+    db_->query(SelectQuery("torrents").orderBy("id", false).limit(1000, 500).build(), {}, &ok);
+    QVERIFY2(!ok, "Manticore should reject an offset of 1000 (max_matches)");
+
+    int seen = 0;
+    qint64 afterId = 0;
+    qint64 previousId = 0;
+    for (;;) {
+        const QVector<Torrent> batch = repo_->pageAfterId(afterId, 500);
+        if (batch.isEmpty())
+            break;
+        for (const Torrent& t : batch) {
+            QVERIFY(t.id > previousId); // strictly ascending, no repeats
+            previousId = t.id;
+            ++seen;
+        }
+        afterId = batch.last().id;
+    }
+    QVERIFY2(seen >= kExtra, qPrintable(QString("swept %1 of >= %2 torrents").arg(seen).arg(kExtra)));
+    QCOMPARE(static_cast<qint64>(seen), repo_->statistics().torrents);
 }
 
 QTEST_MAIN(TestManticoreQueries)

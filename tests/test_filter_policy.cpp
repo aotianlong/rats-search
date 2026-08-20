@@ -48,6 +48,7 @@ private slots:
     void testFileCountLimit();
     void testAdultFilter();
     void testNamingRegExp();
+    void testNegativeLookaheadPattern();
 };
 
 void TestFilterPolicy::testEmptyFilterAcceptsEverything()
@@ -202,6 +203,21 @@ void TestFilterPolicy::testNamingRegExp()
     policy.setSettings(s);
     QVERIFY(!policy.accepts(makeTorrent("movie 1080p", ContentType::Video)));
     QVERIFY(policy.accepts(makeTorrent("movie 720p", ContentType::Video)));
+}
+
+// The "Ignore 'badword'" example the settings dialog offers: a negative
+// lookahead that only matches names free of the word, used in positive mode.
+void TestFilterPolicy::testNegativeLookaheadPattern()
+{
+    FilterSettings s;
+    s.namingRegExp = QStringLiteral(R"(^((?!badword).)*$)");
+    FilterPolicy policy(s);
+
+    QVERIFY(policy.accepts(makeTorrent("a perfectly fine release", ContentType::Video)));
+    QVERIFY(!policy.accepts(makeTorrent("some badword release", ContentType::Video)));
+    // Compiled case-insensitively, so casing does not smuggle a name through.
+    QVERIFY(!policy.accepts(makeTorrent("some BadWord release", ContentType::Video)));
+    QVERIFY(!policy.accepts(makeTorrent("badword", ContentType::Video)));
 }
 
 QTEST_MAIN(TestFilterPolicy)

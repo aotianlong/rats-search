@@ -155,15 +155,7 @@ void Application::applyConfig()
 {
     ConfigStore* c = d_->config.get();
 
-    service::FilterSettings fs;
-    fs.maxFiles = c->filtersMaxFiles();
-    fs.sizeMin = c->filtersSizeMin();
-    fs.sizeMax = c->filtersSizeMax();
-    fs.adultFilter = c->filtersAdultFilter();
-    fs.namingRegExp = c->filtersNamingRegExp();
-    fs.namingRegExpNegative = c->filtersNamingRegExpNegative();
-    fs.contentTypeFilter = c->filtersContentType();
-    d_->filter->setSettings(fs);
+    d_->filter->setSettings(c->filterSettings());
 
     d_->downloads->setDefaultDownloadPath(c->downloadPath());
     d_->trackers->setCountScrapingEnabled(c->trackersEnabled());

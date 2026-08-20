@@ -659,28 +659,7 @@ void SettingsDialog::saveSettings()
     config_->setFiltersSizeMin(static_cast<qint64>(sizeMinSpin_->value()) * 1024 * 1024);
     config_->setFiltersSizeMax(static_cast<qint64>(sizeMaxSpin_->value()) * 1024 * 1024);
 
-    // Build content type filter string
-    QStringList contentTypes;
-    if (videoCheck_->isChecked())
-        contentTypes << "video";
-    if (audioCheck_->isChecked())
-        contentTypes << "audio";
-    if (picturesCheck_->isChecked())
-        contentTypes << "pictures";
-    if (booksCheck_->isChecked())
-        contentTypes << "books";
-    if (appsCheck_->isChecked())
-        contentTypes << "application";
-    if (archivesCheck_->isChecked())
-        contentTypes << "archive";
-    if (discsCheck_->isChecked())
-        contentTypes << "disc";
-
-    if (contentTypes.size() == 7) {
-        config_->setFiltersContentType("");
-    } else {
-        config_->setFiltersContentType(contentTypes.join(","));
-    }
+    config_->setFiltersContentType(selectedContentTypes());
 
     // Save Download Path
     QString newDownloadPath = downloadPathEdit_->text();
@@ -704,6 +683,37 @@ void SettingsDialog::saveSettings()
     config_->save();
 }
 
+QString SettingsDialog::selectedContentTypes() const
+{
+    QStringList contentTypes;
+    if (videoCheck_->isChecked())
+        contentTypes << "video";
+    if (audioCheck_->isChecked())
+        contentTypes << "audio";
+    if (picturesCheck_->isChecked())
+        contentTypes << "pictures";
+    if (booksCheck_->isChecked())
+        contentTypes << "books";
+    if (appsCheck_->isChecked())
+        contentTypes << "application";
+    if (archivesCheck_->isChecked())
+        contentTypes << "archive";
+    if (discsCheck_->isChecked())
+        contentTypes << "disc";
+
+    // Every box ticked means "no type filter" — the same as none at all.
+    return contentTypes.size() == 7 ? QString() : contentTypes.join(QLatin1Char(','));
+}
+
+QJsonObject SettingsDialog::currentFilters() const
+{
+    return QJsonObject { { "maxFiles", maxFilesSpin_->value() }, { "namingRegExp", regexEdit_->text() },
+        { "namingRegExpNegative", regexNegativeCheck_->isChecked() }, { "adultFilter", adultFilterCheck_->isChecked() },
+        { "sizeMin", static_cast<double>(static_cast<qint64>(sizeMinSpin_->value()) * 1024 * 1024) },
+        { "sizeMax", static_cast<double>(static_cast<qint64>(sizeMaxSpin_->value()) * 1024 * 1024) },
+        { "contentType", selectedContentTypes() } };
+}
+
 // =============================================================================
 // Slots
 // =============================================================================
@@ -716,8 +726,8 @@ void SettingsDialog::runCleanup(bool dryRun)
     QApplication::processEvents(); // paint the status before the synchronous
                                    // sweep
 
-    app_->api()->call(
-        QStringLiteral("torrent.cleanup"), { { "dryRun", dryRun } }, [this, dryRun](const rats::Result& r) {
+    app_->api()->call(QStringLiteral("torrent.cleanup"), { { "dryRun", dryRun }, { "filters", currentFilters() } },
+        [this, dryRun](const rats::Result& r) {
             if (!r.ok()) {
                 cleanupProgress_->setText(tr("Cleanup failed: %1").arg(r.error()));
                 return;

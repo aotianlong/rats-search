@@ -367,6 +367,19 @@ void ConfigStore::setFiltersContentType(const QString& type)
     setValue("filters.contentType", type);
 }
 
+service::FilterSettings ConfigStore::filterSettings() const
+{
+    service::FilterSettings fs;
+    fs.maxFiles = filtersMaxFiles();
+    fs.sizeMin = filtersSizeMin();
+    fs.sizeMax = filtersSizeMax();
+    fs.adultFilter = filtersAdultFilter();
+    fs.namingRegExp = filtersNamingRegExp();
+    fs.namingRegExpNegative = filtersNamingRegExpNegative();
+    fs.contentTypeFilter = filtersContentType();
+    return fs;
+}
+
 // ============================================================================
 // Client Settings
 // ============================================================================

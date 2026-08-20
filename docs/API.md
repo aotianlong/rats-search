@@ -279,6 +279,14 @@ GET http://localhost:8095/api/torrent.cleanup?dryRun=true
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
 | `dryRun` | bool | no | `false` | Only count the matches; remove nothing |
+| `filters` | object | no | stored config | Filter overrides applied for this sweep only, key by key |
+
+`filters` takes the same keys as the `filters` config section — `maxFiles`,
+`sizeMin`, `sizeMax` (bytes), `adultFilter`, `namingRegExp`,
+`namingRegExpNegative`, `contentType` — and each one given replaces the stored
+value **for this call only**; nothing is persisted. This is how the settings
+dialog previews rules that are still being edited. An unparsable `namingRegExp`
+fails the call instead of silently accepting every name.
 
 Emits `torrentCleanupProgress` WebSocket events while it sweeps.
 
