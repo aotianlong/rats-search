@@ -20,6 +20,7 @@ A high-performance BitTorrent search program for desktop and server. It collects
 * Collection filters (regex filters, adult filters)
 * Tracker peers scan support
 * Collects only statistical information and doesn't save any internal torrent data
+* Database export/import: dump the whole index to a portable `.ratsdb` file and merge it back (resumable)
 
 ### P2P Network & Security
 * Supports its own P2P protocol for additional data transfer (search between Rats clients, descriptions/votes transfer, etc.)
@@ -29,6 +30,7 @@ A high-performance BitTorrent search program for desktop and server. It collects
 * mDNS Discovery for automatic local network peer discovery
 * NAT Traversal with STUN/ICE support for connecting through firewalls
 * GossipSub messaging for scalable publish-subscribe protocol
+* Database transfer between clients: download a peer's whole index over P2P (opt-in sharing on the serving side)
 * Supports torrent rating (voting)
 * Description association from trackers
 * Top list (most common and popular torrents)
