@@ -1,6 +1,7 @@
 #include "settingsdialog.h"
 #include "app/application.h"
 #include "app/config_store.h"
+#include "app/search_history_store.h"
 #include "app/translation_manager.h"
 #include "autostartmanager.h"
 #include "rest/api_router.h"
@@ -174,6 +175,30 @@ QWidget* SettingsDialog::createGeneralTab()
     });
 
     tabLayout->addWidget(startupGroup);
+
+    // --- Search ---
+    QGroupBox* searchGroup = new QGroupBox(tr("Search"));
+    QFormLayout* searchLayout = new QFormLayout(searchGroup);
+    searchLayout->setSpacing(10);
+
+    searchHistoryCheck_ = new QCheckBox(tr("Remember search history"));
+    searchHistoryCheck_->setToolTip(
+        tr("Store recent search queries and offer them in the search field. Turning this off stops new queries from "
+           "being recorded; already stored ones are kept until you clear them."));
+    searchLayout->addRow(searchHistoryCheck_);
+
+    clearSearchHistoryButton_ = new QPushButton(tr("Clear search history"));
+    // Clearing is immediate and independent of Save — it is an action, not a
+    // setting, and there is nothing to roll back on Cancel.
+    connect(clearSearchHistoryButton_, &QPushButton::clicked, this, [this]() {
+        if (!app_ || !app_->searchHistory())
+            return;
+        app_->searchHistory()->clear();
+        updateSearchHistoryButton();
+    });
+    searchLayout->addRow(clearSearchHistoryButton_);
+
+    tabLayout->addWidget(searchGroup);
 
     // --- Updates ---
     QGroupBox* updatesGroup = new QGroupBox(tr("Updates"));
@@ -530,6 +555,16 @@ QWidget* SettingsDialog::createStorageTab()
     return wrapInScrollArea(tab);
 }
 
+// Label the clear button with how many queries are stored, and disable it when
+// there is nothing to clear.
+void SettingsDialog::updateSearchHistoryButton()
+{
+    const int count = app_ && app_->searchHistory() ? app_->searchHistory()->size() : 0;
+    clearSearchHistoryButton_->setEnabled(count > 0);
+    clearSearchHistoryButton_->setText(
+        count > 0 ? tr("Clear search history (%1)").arg(count) : tr("Clear search history"));
+}
+
 // =============================================================================
 // Load / Save
 // =============================================================================
@@ -554,6 +589,8 @@ void SettingsDialog::loadSettings()
     minimizeToTrayCheck_->setChecked(config_->trayOnMinimize());
     closeToTrayCheck_->setChecked(config_->trayOnClose());
     checkUpdatesCheck_->setChecked(config_->checkUpdatesOnStartup());
+    searchHistoryCheck_->setChecked(config_->searchHistoryEnabled());
+    updateSearchHistoryButton();
 
     // Network
     p2pPortSpin_->setValue(config_->p2pPort());
@@ -627,6 +664,7 @@ void SettingsDialog::saveSettings()
     config_->setTrayOnMinimize(minimizeToTrayCheck_->isChecked());
     config_->setTrayOnClose(closeToTrayCheck_->isChecked());
     config_->setCheckUpdatesOnStartup(checkUpdatesCheck_->isChecked());
+    config_->setSearchHistoryEnabled(searchHistoryCheck_->isChecked());
 
     // Autostart lives in the OS (registry / .desktop / launch agent), which is its
     // only source of truth — loadSettings() reads it back from AutoStartManager.

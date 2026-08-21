@@ -110,6 +110,9 @@ See [WebSocket Events](#websocket-events) for details.
 | `search.files` | Search by file names inside torrents |
 | `search.top` | Top torrents by seeders for a content type |
 | `search.recent` | Recently added torrents |
+| `search.history` | Recent search queries, most recent first |
+| `search.history.remove` | Forget one stored query |
+| `search.history.clear` | Forget every stored query |
 | `torrent.get` | Get a single torrent by hash (DHT fallback) |
 | `torrent.remove` | Remove torrents by hash list |
 | `torrent.cleanup` | Re-apply the filter policy to the index and drop torrents that no longer pass |
@@ -220,6 +223,55 @@ GET http://localhost:8095/api/search.recent?limit=20
 | `limit` | int | | `10` | Number of recent torrents |
 
 **Response** - array of torrent objects.
+
+---
+
+### Search History
+
+Every `search.torrents` call is recorded as a search-history entry (the GUI records
+what is typed into its search field the same way). Entries are deduplicated
+case-insensitively — a repeated query moves back to the front and bumps its
+`count` — and the newest 100 are kept, in `search-history.json` in the data
+directory. Recording is off while the `searchHistory` config key is `false`;
+stored entries are kept until cleared explicitly.
+
+#### `search.history` - Recent search queries
+
+```
+GET http://localhost:8095/api/search.history?limit=20
+```
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `limit` | int | | `100` | Number of entries (most recent first) |
+
+**Response:**
+
+```json
+[
+    { "query": "ubuntu", "lastSearchedAt": 1735689600000, "count": 3 }
+]
+```
+
+#### `search.history.remove` - Forget one query
+
+```
+GET http://localhost:8095/api/search.history.remove?query=ubuntu
+```
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `query` | string | yes | | The stored query (matched case-insensitively) |
+
+**Response:** `{ "removed": true }` — `false` when the query was not stored.
+
+#### `search.history.clear` - Forget every query
+
+```
+GET http://localhost:8095/api/search.history.clear
+```
+
+**Response:** `{ "cleared": true }` — `false` when the history was already empty.
 
 ---
 

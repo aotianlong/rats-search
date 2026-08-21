@@ -8,6 +8,7 @@
 namespace rats::app {
 class ConfigStore;
 class FavoritesStore;
+class SearchHistoryStore;
 } // namespace rats::app
 namespace rats::data {
 class TorrentRepository;
@@ -79,6 +80,7 @@ public:
     // (database, transport) only after start().
     ConfigStore* config() const;
     FavoritesStore* favorites() const;
+    SearchHistoryStore* searchHistory() const;
     data::TorrentRepository* torrents() const;
     net::P2PTransport* transport() const;
     net::TorrentEngine* engine() const;

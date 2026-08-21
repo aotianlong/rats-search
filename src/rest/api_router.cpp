@@ -2,6 +2,7 @@
 
 #include "app/application.h"
 #include "app/config_store.h"
+#include "app/search_history_store.h"
 #include "common/infohash.h"
 #include "data/torrent_repository.h"
 #include "domain/peer.h"
@@ -300,6 +301,11 @@ void ApiRouter::registerMethods()
     // -----------------------------------------------------------------------
     add("search.torrents", [this](const QJsonObject& params, const ResultCallback& respond) {
         const service::SearchService::Request req = buildSearchRequest(params);
+        // A torrent search through the API is a user-initiated search, so it is
+        // remembered exactly like one typed into the GUI (the store itself
+        // honours the searchHistory setting). search.files is deliberately not
+        // recorded: a client running both for one query would count it twice.
+        app_->searchHistory()->add(req.query);
         const QVector<domain::SearchHit> hits = app_->search()->searchTorrents(req);
 
         QJsonArray results;
@@ -351,6 +357,37 @@ void ApiRouter::registerMethods()
         for (const domain::Torrent& t : torrents)
             results.append(domain::codec::toJson(t));
         respond(Result::success(results));
+    });
+
+    // -----------------------------------------------------------------------
+    // Search history
+    // -----------------------------------------------------------------------
+    add("search.history", [this](const QJsonObject& params, const ResultCallback& respond) {
+        const int limit = params["limit"].toInt(app::SearchHistoryStore::kMaxEntries);
+
+        QJsonArray results;
+        for (const app::SearchHistoryStore::Entry& entry : app_->searchHistory()->entries()) {
+            if (limit >= 0 && results.size() >= limit)
+                break;
+            results.append(QJsonObject { { "query", entry.query },
+                { "lastSearchedAt", entry.lastSearchedAt.toMSecsSinceEpoch() }, { "count", entry.count } });
+        }
+        respond(Result::success(results));
+    });
+
+    add("search.history.remove", [this](const QJsonObject& params, const ResultCallback& respond) {
+        const QString query = params["query"].toString();
+        if (query.trimmed().isEmpty()) {
+            respond(Result::failure("Missing query"));
+            return;
+        }
+        const bool removed = app_->searchHistory()->remove(query);
+        respond(Result::success(QJsonObject { { "removed", removed } }));
+    });
+
+    add("search.history.clear", [this](const QJsonObject& /*params*/, const ResultCallback& respond) {
+        const bool cleared = app_->searchHistory()->clear();
+        respond(Result::success(QJsonObject { { "cleared", cleared } }));
     });
 
     // -----------------------------------------------------------------------

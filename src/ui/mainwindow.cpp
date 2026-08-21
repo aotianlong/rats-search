@@ -20,6 +20,7 @@
 #include "app/application.h"
 #include "app/config_store.h"
 #include "app/favorites_store.h"
+#include "app/search_history_store.h"
 #include "app/translation_manager.h"
 #include "common/result.h"
 #include "data/torrent_repository.h"
@@ -44,6 +45,7 @@
 #include <QClipboard>
 #include <QCloseEvent>
 #include <QComboBox>
+#include <QCompleter>
 #include <QContextMenuEvent>
 #include <QDateTime>
 #include <QDesktopServices>
@@ -54,6 +56,7 @@
 #include <QFile>
 #include <QFileDialog>
 #include <QFileInfo>
+#include <QFocusEvent>
 #include <QFontMetrics>
 #include <QHBoxLayout>
 #include <QHeaderView>
@@ -73,6 +76,7 @@
 #include <QSplitter>
 #include <QStandardPaths>
 #include <QStatusBar>
+#include <QStringListModel>
 #include <QStyle>
 #include <QSysInfo>
 #include <QSystemTrayIcon>
@@ -235,6 +239,8 @@ void MainWindow::setupUi()
     sortComboBox->addItem(tr("Sort: Name A-Z"), "name_asc");
     sortComboBox->addItem(tr("Sort: Name Z-A"), "name_desc");
     sortComboBox->setMinimumHeight(44);
+
+    setupSearchHistory();
 
     searchLayout->addWidget(searchLineEdit, 1);
     searchLayout->addWidget(typeComboBox);
@@ -494,6 +500,11 @@ void MainWindow::connectSearchSignals()
     connect(searchButton, &QPushButton::clicked, this, &MainWindow::onSearchButtonClicked);
     connect(searchLineEdit, &QLineEdit::returnPressed, this, &MainWindow::onSearchButtonClicked);
     connect(searchLineEdit, &QLineEdit::textChanged, this, &MainWindow::onSearchTextChanged);
+    connect(searchLineEdit, &QWidget::customContextMenuRequested, this, &MainWindow::showSearchContextMenu);
+    if (app_ && app_->searchHistory()) {
+        connect(app_->searchHistory(), &rats::app::SearchHistoryStore::historyChanged, this,
+            &MainWindow::refreshSearchHistory);
+    }
     connect(sortComboBox, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &MainWindow::onSortOrderChanged);
 
     // Changing a filter re-runs the current query so results update in place.
@@ -746,6 +757,9 @@ void MainWindow::performSearch(const QString& query)
         return;
 
     currentSearchQuery_ = query;
+    // Remember what the user searched for (a no-op while history is disabled).
+    if (app_->searchHistory())
+        app_->searchHistory()->add(query);
     qInfo() << "Search started:" << query.left(50) << (query.length() > 50 ? "..." : "");
     showStatusMessage(tr("🔍 Searching..."), 2000);
 
@@ -949,6 +963,82 @@ void MainWindow::onSearchButtonClicked()
 void MainWindow::onSearchTextChanged(const QString& text)
 {
     searchButton->setEnabled(!text.isEmpty());
+}
+
+// ============================================================================
+// Search history
+// ============================================================================
+
+void MainWindow::setupSearchHistory()
+{
+    searchHistoryModel = new QStringListModel(this);
+    searchCompleter = new QCompleter(searchHistoryModel, this);
+    searchCompleter->setCaseSensitivity(Qt::CaseInsensitive);
+    // Substring matching, so "ubuntu 24" also surfaces "xubuntu 24.04"; with an
+    // empty prefix every entry matches, which is what the click-to-drop-down
+    // path below relies on.
+    searchCompleter->setFilterMode(Qt::MatchContains);
+    searchCompleter->setCompletionMode(QCompleter::PopupCompletion);
+    searchCompleter->setMaxVisibleItems(12);
+    searchLineEdit->setCompleter(searchCompleter);
+
+    // Picking an entry from the dropdown runs it immediately — activated fires
+    // after the line edit has been filled in.
+    connect(searchCompleter, QOverload<const QString&>::of(&QCompleter::activated), this,
+        [this](const QString& text) { performSearch(text); });
+
+    // Focus/click on an empty field drops down the whole history.
+    searchLineEdit->installEventFilter(this);
+
+    // The history lives next to the standard cut/copy/paste menu.
+    searchLineEdit->setContextMenuPolicy(Qt::CustomContextMenu);
+
+    refreshSearchHistory();
+}
+
+void MainWindow::refreshSearchHistory()
+{
+    if (!searchHistoryModel || !app_ || !app_->searchHistory())
+        return;
+    searchHistoryModel->setStringList(app_->searchHistory()->queries());
+}
+
+void MainWindow::showSearchHistoryPopup()
+{
+    if (!searchCompleter || searchHistoryModel->rowCount() == 0)
+        return;
+    searchCompleter->setCompletionPrefix(QString());
+    searchCompleter->complete();
+}
+
+void MainWindow::showSearchContextMenu(const QPoint& pos)
+{
+    // Start from the built-in menu so cut/copy/paste/undo stay available.
+    QMenu* menu = searchLineEdit->createStandardContextMenu();
+    menu->setAttribute(Qt::WA_DeleteOnClose);
+
+    const QStringList history = app_ && app_->searchHistory() ? app_->searchHistory()->queries(10) : QStringList();
+    if (!history.isEmpty()) {
+        menu->addSeparator();
+        QMenu* recent = menu->addMenu(tr("🕘 Recent searches"));
+        for (const QString& query : history) {
+            QAction* action = recent->addAction(query);
+            connect(action, &QAction::triggered, this, [this, query]() {
+                searchLineEdit->setText(query);
+                performSearch(query);
+            });
+        }
+        recent->addSeparator();
+        recent->addAction(tr("Clear search history"), this, &MainWindow::clearSearchHistory);
+    }
+
+    menu->popup(searchLineEdit->mapToGlobal(pos));
+}
+
+void MainWindow::clearSearchHistory()
+{
+    if (app_ && app_->searchHistory() && app_->searchHistory()->clear())
+        showStatusMessage(tr("🕘 Search history cleared"), 3000);
 }
 
 void MainWindow::onTorrentSelected(const QModelIndex& index)
@@ -1712,6 +1802,25 @@ void MainWindow::bringToFront()
     setWindowState(windowState() & ~Qt::WindowMinimized);
     activateWindow();
     raise();
+}
+
+bool MainWindow::eventFilter(QObject* watched, QEvent* event)
+{
+    // Clicking (or tabbing into) an empty search field shows the recent
+    // queries, the way a browser address bar does. The popup is deferred to the
+    // next event-loop turn: opening it from inside the press handler would let
+    // the very same click close it again.
+    if (watched == searchLineEdit && searchLineEdit->text().isEmpty()) {
+        bool wantsHistory = event->type() == QEvent::MouseButtonPress;
+        // Only *deliberate* keyboard navigation counts — the search field also
+        // takes focus when the window opens, and greeting the user with a
+        // dropdown at launch is not what they asked for.
+        if (event->type() == QEvent::FocusIn)
+            wantsHistory = static_cast<QFocusEvent*>(event)->reason() == Qt::TabFocusReason;
+        if (wantsHistory)
+            QTimer::singleShot(0, this, &MainWindow::showSearchHistoryPopup);
+    }
+    return QMainWindow::eventFilter(watched, event);
 }
 
 void MainWindow::changeEvent(QEvent* event)

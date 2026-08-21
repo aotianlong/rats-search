@@ -957,6 +957,18 @@ New version: %2</source>
         <source>Install Update</source>
         <translation>Update installieren</translation>
     </message>
+    <message>
+        <source>🕘 Recent searches</source>
+        <translation>🕘 Letzte Suchanfragen</translation>
+    </message>
+    <message>
+        <source>Clear search history</source>
+        <translation>Suchverlauf löschen</translation>
+    </message>
+    <message>
+        <source>🕘 Search history cleared</source>
+        <translation>🕘 Suchverlauf gelöscht</translation>
+    </message>
 </context>
 <context>
     <name>SearchResultModel</name>
@@ -1506,6 +1518,26 @@ Are you sure?</source>
         <location filename="../src/settingsdialog.cpp" line="825"/>
         <source>Select Data Directory</source>
         <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Search</source>
+        <translation>Suche</translation>
+    </message>
+    <message>
+        <source>Remember search history</source>
+        <translation>Suchverlauf speichern</translation>
+    </message>
+    <message>
+        <source>Store recent search queries and offer them in the search field. Turning this off stops new queries from being recorded; already stored ones are kept until you clear them.</source>
+        <translation>Letzte Suchanfragen speichern und im Suchfeld vorschlagen. Ist die Option aus, werden keine neuen Anfragen aufgezeichnet; bereits gespeicherte bleiben erhalten, bis Sie sie löschen.</translation>
+    </message>
+    <message>
+        <source>Clear search history</source>
+        <translation>Suchverlauf löschen</translation>
+    </message>
+    <message>
+        <source>Clear search history (%1)</source>
+        <translation>Suchverlauf löschen (%1)</translation>
     </message>
 </context>
 <context>

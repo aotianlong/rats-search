@@ -957,6 +957,18 @@ New version: %2</source>
         <source>Install Update</source>
         <translation>Installer la mise à jour</translation>
     </message>
+    <message>
+        <source>🕘 Recent searches</source>
+        <translation>🕘 Recherches récentes</translation>
+    </message>
+    <message>
+        <source>Clear search history</source>
+        <translation>Effacer l'historique de recherche</translation>
+    </message>
+    <message>
+        <source>🕘 Search history cleared</source>
+        <translation>🕘 Historique de recherche effacé</translation>
+    </message>
 </context>
 <context>
     <name>SearchResultModel</name>
@@ -1506,6 +1518,26 @@ Are you sure?</source>
         <location filename="../src/settingsdialog.cpp" line="825"/>
         <source>Select Data Directory</source>
         <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Search</source>
+        <translation>Recherche</translation>
+    </message>
+    <message>
+        <source>Remember search history</source>
+        <translation>Mémoriser l'historique de recherche</translation>
+    </message>
+    <message>
+        <source>Store recent search queries and offer them in the search field. Turning this off stops new queries from being recorded; already stored ones are kept until you clear them.</source>
+        <translation>Enregistrer les recherches récentes et les proposer dans le champ de recherche. Si cette option est désactivée, les nouvelles recherches ne sont plus enregistrées ; celles déjà enregistrées sont conservées jusqu'à ce que vous les effaciez.</translation>
+    </message>
+    <message>
+        <source>Clear search history</source>
+        <translation>Effacer l'historique de recherche</translation>
+    </message>
+    <message>
+        <source>Clear search history (%1)</source>
+        <translation>Effacer l'historique de recherche (%1)</translation>
     </message>
 </context>
 <context>

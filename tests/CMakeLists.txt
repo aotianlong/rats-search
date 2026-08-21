@@ -24,6 +24,7 @@ add_rats_test(test_query)
 add_rats_test(test_infohash)
 add_rats_test(test_update_service)
 add_rats_test(test_config_store)
+add_rats_test(test_search_history)
 add_rats_test(test_filter_policy)
 add_rats_test(test_manticore_maintenance)
 

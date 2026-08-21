@@ -2,6 +2,7 @@
 
 #include "app/config_store.h"
 #include "app/favorites_store.h"
+#include "app/search_history_store.h"
 #include "app/translation_manager.h"
 #include "data/database.h"
 #include "data/feed_repository.h"
@@ -45,6 +46,7 @@ struct Application::Private {
     // Adapters (owned, constructed in dependency order)
     std::unique_ptr<ConfigStore> config;
     std::unique_ptr<FavoritesStore> favorites;
+    std::unique_ptr<SearchHistoryStore> searchHistory;
     std::unique_ptr<data::Manticore> manticore;
     std::unique_ptr<data::Database> database;
     std::unique_ptr<data::TorrentRepository> torrents;
@@ -100,6 +102,7 @@ Application::Application(Options options, QObject* parent) : QObject(parent), d_
     translations.setLanguage(language);
 
     d_->favorites = std::make_unique<FavoritesStore>(dataDir);
+    d_->searchHistory = std::make_unique<SearchHistoryStore>(dataDir);
 
     // --- Data layer -------------------------------------------------------
     d_->manticore = std::make_unique<data::Manticore>(dataDir);
@@ -164,6 +167,7 @@ void Application::applyConfig()
     d_->transport->setPortMappingEnabled(c->upnpEnabled());
     d_->transport->setHolePunchEnabled(c->holePunchEnabled());
     d_->crawler->setWalkInterval(c->spiderWalkInterval());
+    d_->searchHistory->setEnabled(c->searchHistoryEnabled());
 
     // Reflect runtime toggles of the crawler and replication. Only act once the
     // subsystems are up (applyConfig also runs at construction, before start(),
@@ -290,6 +294,10 @@ ConfigStore* Application::config() const
 FavoritesStore* Application::favorites() const
 {
     return d_->favorites.get();
+}
+SearchHistoryStore* Application::searchHistory() const
+{
+    return d_->searchHistory.get();
 }
 data::TorrentRepository* Application::torrents() const
 {

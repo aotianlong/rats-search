@@ -23,6 +23,8 @@ class Application;
 // UI components
 class QLineEdit;
 class QPushButton;
+class QCompleter;
+class QStringListModel;
 class QTableView;
 class SearchResultModel;
 class TorrentItemDelegate;
@@ -50,6 +52,9 @@ public slots:
 
 protected:
     void closeEvent(QCloseEvent* event) override;
+    // Watches the search field so clicking/focusing it while empty drops down
+    // the search history.
+    bool eventFilter(QObject* watched, QEvent* event) override;
     void changeEvent(QEvent* event) override;
     void resizeEvent(QResizeEvent* event) override;
     void dragEnterEvent(QDragEnterEvent* event) override;
@@ -58,6 +63,9 @@ protected:
 private slots:
     void onSearchButtonClicked();
     void onSearchTextChanged(const QString& text);
+    // Standard line-edit menu plus the search-history entries.
+    void showSearchContextMenu(const QPoint& pos);
+    void clearSearchHistory();
     void onTorrentSelected(const QModelIndex& index);
     void onTorrentDoubleClicked(const QModelIndex& index);
     void onSortOrderChanged(int index);
@@ -107,6 +115,13 @@ private:
     void connectServiceSignals(); // transport / repository / indexing / peers
     void connectPeerSignals(); // remote P2P results streamed into the UI
     void performSearch(const QString& query);
+    // Set up the history dropdown on the search field (completer + event filter).
+    void setupSearchHistory();
+    // Re-fill the completer from app_->searchHistory(). Wired to its
+    // historyChanged signal, so every recorded query shows up immediately.
+    void refreshSearchHistory();
+    // Drop down the full history (no prefix filtering). No-op when empty.
+    void showSearchHistoryPopup();
     void updateStatusBar();
     // Transient status text (indexed torrents, downloads, migrations, …). It
     // goes into its own status-bar slot instead of QStatusBar::showMessage(),
@@ -151,6 +166,8 @@ private:
 
     // UI Components
     QLineEdit* searchLineEdit = nullptr;
+    QCompleter* searchCompleter = nullptr; // history dropdown on searchLineEdit
+    QStringListModel* searchHistoryModel = nullptr; // completer's backing model
     QPushButton* searchButton = nullptr;
     QComboBox* sortComboBox = nullptr;
     QComboBox* typeComboBox = nullptr;

@@ -163,6 +163,12 @@ public:
     bool safeSearch() const;
     void setSafeSearch(bool enabled);
 
+    // Whether user-initiated searches are remembered in app::SearchHistoryStore.
+    // Turning it off stops new queries from being recorded; already-stored ones
+    // stay until the user clears the history explicitly.
+    bool searchHistoryEnabled() const;
+    void setSearchHistoryEnabled(bool enabled);
+
     bool trayOnClose() const;
     void setTrayOnClose(bool enabled);
 

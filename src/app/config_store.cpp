@@ -68,8 +68,9 @@ void ConfigStore::setDefaults()
         { "downloadPath", QStandardPaths::writableLocation(QStandardPaths::DownloadLocation) },
 
         // UI
-        { "language", "en" }, { "darkMode", false }, { "safeSearch", false }, { "trayOnClose", false },
-        { "trayOnMinimize", true }, { "startMinimized", false }, { "checkUpdatesOnStartup", true },
+        { "language", "en" }, { "darkMode", false }, { "safeSearch", false }, { "searchHistory", true },
+        { "trayOnClose", false }, { "trayOnMinimize", true }, { "startMinimized", false },
+        { "checkUpdatesOnStartup", true },
 
         // Legal
         { "agreementAccepted", false }
@@ -422,6 +423,15 @@ bool ConfigStore::safeSearch() const
 void ConfigStore::setSafeSearch(bool enabled)
 {
     setValue("safeSearch", enabled);
+}
+
+bool ConfigStore::searchHistoryEnabled() const
+{
+    return config_["searchHistory"].toBool(true);
+}
+void ConfigStore::setSearchHistoryEnabled(bool enabled)
+{
+    setValue("searchHistory", enabled);
 }
 
 bool ConfigStore::trayOnClose() const

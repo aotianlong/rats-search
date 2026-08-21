@@ -61,6 +61,7 @@ private:
     void installScrollGuard(QWidget* container);
     void loadSettings();
     void saveSettings();
+    void updateSearchHistoryButton();
     // The content-type checkboxes as the CSV the config stores ("" = all).
     QString selectedContentTypes() const;
     // The filter widgets as they are right now — sent to `torrent.cleanup` so
@@ -83,6 +84,8 @@ private:
     QCheckBox* autoStartCheck_;
     QCheckBox* darkModeCheck_;
     QCheckBox* checkUpdatesCheck_;
+    QCheckBox* searchHistoryCheck_;
+    QPushButton* clearSearchHistoryButton_;
 
     // Network settings
     QSpinBox* p2pPortSpin_;
