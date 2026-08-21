@@ -389,7 +389,8 @@ void MainWindow::setupStatusBar()
     peerCountLabel = new QLabel(tr("👥 Peers: %1").arg(0));
     dhtNodeCountLabel = new QLabel(tr("🌐 DHT: %1").arg(0));
     torrentCountLabel = new QLabel(tr("📦 Torrents: %1").arg(0));
-    spiderStatusLabel = new QLabel(tr("🕷️ Spider: Idle"));
+    spiderStatusLabel = new QLabel();
+    refreshSpiderStatus();
 
     // Transient status text gets its own slot at the right end of the bar. It is
     // free to shrink (Ignored policy + elision) so a long torrent name never
@@ -622,7 +623,7 @@ void MainWindow::connectServiceSignals()
 
     // Crawler status text.
     if (app_->crawler()) {
-        connect(app_->crawler(), &rats::net::Crawler::statusChanged, this, &MainWindow::onSpiderStatusChanged);
+        connect(app_->crawler(), &rats::net::Crawler::statusChanged, this, &MainWindow::refreshSpiderStatus);
     }
 
     // New torrents indexed (from any source) update the status message.
@@ -1321,9 +1322,14 @@ void MainWindow::refreshP2PStatus()
     paintP2PIndicator();
 }
 
-void MainWindow::onSpiderStatusChanged(const QString& status)
+void MainWindow::refreshSpiderStatus()
 {
-    spiderStatusLabel->setText(tr("🕷️ Spider: %1").arg(status));
+    // Read the crawler's live state instead of latching onto its statusChanged
+    // signal: Application::start() runs before MainWindow exists, so the initial
+    // "Active" is emitted with nobody connected yet.
+    auto* crawler = app_ ? app_->crawler() : nullptr;
+    const bool running = crawler && crawler->isRunning();
+    spiderStatusLabel->setText(tr("🕷️ Spider: %1").arg(running ? tr("Active") : tr("Stopped")));
 }
 
 void MainWindow::paintP2PIndicator()
@@ -1361,6 +1367,8 @@ void MainWindow::updateNetworkStatus()
     } else if (p2pState_ != P2PState::NotStarted) {
         dhtNodeCountLabel->setText(tr("🌐 DHT: Offline"));
     }
+
+    refreshSpiderStatus();
 }
 
 void MainWindow::onTorrentIndexed(const Torrent& torrent)

@@ -70,7 +70,7 @@ private slots:
     void onTorrentDoubleClicked(const QModelIndex& index);
     void onSortOrderChanged(int index);
     void onPeerCountChanged(int count);
-    void onSpiderStatusChanged(const QString& status);
+    void refreshSpiderStatus();
     void updateNetworkStatus(); // Timer-based status update
     void onTorrentIndexed(const rats::domain::Torrent& torrent);
     void onDetailsPanelCloseRequested();

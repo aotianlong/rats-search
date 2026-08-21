@@ -359,9 +359,14 @@ Start downloading torrents from the search results!</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.cpp" line="358"/>
-        <source>🕷️ Spider: Idle</source>
-        <translation type="unfinished"></translation>
+        <location filename="../src/mainwindow.cpp" line="1332"/>
+        <source>Active</source>
+        <translation>Activo</translation>
+    </message>
+    <message>
+        <location filename="../src/mainwindow.cpp" line="1332"/>
+        <source>Stopped</source>
+        <translation>Detenido</translation>
     </message>
     <message>
         <location filename="../src/mainwindow.cpp" line="440"/>

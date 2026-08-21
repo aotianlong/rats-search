@@ -360,9 +360,14 @@ Start downloading torrents from the search results!</source>
         <translation>📦 Торрентов: %1</translation>
     </message>
     <message>
-        <location filename="../src/mainwindow.cpp" line="358"/>
-        <source>🕷️ Spider: Idle</source>
-        <translation>🕷️ Паук: Ожидание</translation>
+        <location filename="../src/mainwindow.cpp" line="1332"/>
+        <source>Active</source>
+        <translation>Активен</translation>
+    </message>
+    <message>
+        <location filename="../src/mainwindow.cpp" line="1332"/>
+        <source>Stopped</source>
+        <translation>Остановлен</translation>
     </message>
     <message>
         <location filename="../src/mainwindow.cpp" line="440"/>
