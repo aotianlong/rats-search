@@ -2,6 +2,58 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.2.5](https://github.com/DEgITx/rats-search/compare/v2.2.4...v2.2.5) (2026-08-21)
+
+
+### 🚀 Features
+
+
+- **db:** Full import/export/transfer database support([b835afc](https://github.com/DEgITx/rats-search/commit/b835afc2e94996bbafbaa79da797559b8ea78534)) by @DEgITx
+- **console:** Share db option([d3330b3](https://github.com/DEgITx/rats-search/commit/d3330b3ecf9530e0f786205ec29ce4887e935c4c)) by @DEgITx
+
+
+
+
+### 👥 Contributors
+
+
+
+- [@DEgITx](https://github.com/DEgITx) — 2 commits
+
+
+## [2.2.4](https://github.com/DEgITx/rats-search/compare/v2.2.3...v2.2.4) (2026-08-21)
+
+
+### 🐛 Bug Fixes
+
+
+- **ui:** Fixed idle status at bottom([b28e478](https://github.com/DEgITx/rats-search/commit/b28e478edaf676a4602acb353975c2e2d8244825)) by @DEgITx
+
+
+### 📚 Documentation
+
+
+- Update CHANGELOG.md for v2.2.3([668b21c](https://github.com/DEgITx/rats-search/commit/668b21c013a3bfa2ad4560cd8cbb6dbc15b50a25)) by @github-actions[bot]
+
+
+### 🚀 Features
+
+
+- **search:** Search history support([b276f16](https://github.com/DEgITx/rats-search/commit/b276f16c149d694bbb274a4a6d486e7158d55e70)) by @DEgITx
+
+
+
+
+### 👥 Contributors
+
+
+
+- [@DEgITx](https://github.com/DEgITx) — 2 commits
+
+
+- [@github-actions[bot]](https://github.com/github-actions[bot]) — 1 commit
+
+
 ## [2.2.3](https://github.com/DEgITx/rats-search/compare/v2.2.2...v2.2.3) (2026-08-20)
 
 
