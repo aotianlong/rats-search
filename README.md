@@ -258,7 +258,7 @@ Access the web interface at: http://localhost:8095
 
 ## Support & Donation
 
-Bitcoin: bc1qsm5akf0gf2jnnxvjpf6nn3cd2p29yt3svxva3g
+Bitcoin: bc1pmzppgyj3qlveeqzpuza3j079wjskdf56nk7f2pd7mqc6fl53yr8su93kpx
 
 Subscribe to autor (GitHub donations): https://github.com/sponsors/DEgITx
 
