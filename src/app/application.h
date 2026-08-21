@@ -4,6 +4,7 @@
 #include <QObject>
 #include <QString>
 #include <memory>
+#include <optional>
 
 namespace rats::app {
 class ConfigStore;
@@ -62,6 +63,11 @@ public:
         int dhtPort = 0;
         int maxPeers = 0;
         bool forceSpider = false;
+        // Whole-database sharing (--share-db). Unset means "use the stored
+        // databaseSharing value"; a value overrides it for this run, including
+        // across later config changes — a daemon started with --share-db=off
+        // must not start serving because something wrote the config key.
+        std::optional<bool> shareDatabase;
     };
 
     explicit Application(Options options, QObject* parent = nullptr);

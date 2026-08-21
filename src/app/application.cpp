@@ -168,7 +168,7 @@ void Application::applyConfig()
     d_->trackers->setCountScrapingEnabled(c->trackersEnabled());
     d_->trackers->setInfoScrapingEnabled(c->trackersEnabled());
     d_->replication->setEnabled(c->p2pReplication());
-    d_->databaseSync->setSharingEnabled(c->databaseSharing());
+    d_->databaseSync->setSharingEnabled(d_->options.shareDatabase.value_or(c->databaseSharing()));
     d_->transport->setPortMappingEnabled(c->upnpEnabled());
     d_->transport->setHolePunchEnabled(c->holePunchEnabled());
     d_->crawler->setWalkInterval(c->spiderWalkInterval());

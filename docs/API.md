@@ -462,7 +462,10 @@ exports its index and sends the dump over the librats file transfer; it arrives
 in `<dataDir>/dbsync/`, is merged, and is deleted. The peer only agrees when it
 has the `databaseSharing` config key enabled — it is **off by default**, so a
 refusal (`"reason": "sharing disabled"`) is the normal answer from a peer that
-has not opted in. In the other direction, a file offer from a peer we did not ask
+has not opted in. There is no interactive confirmation on either side: the
+decision is entirely the config key's, which is what makes the headless daemon
+usable. A daemon can also be pinned with the `--share-db=on|off` CLI flag, which
+overrides the key for that run and cannot be changed through `config.set`. In the other direction, a file offer from a peer we did not ask
 is rejected unopened.
 
 ---

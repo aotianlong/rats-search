@@ -9,14 +9,15 @@
 #include <csignal>
 #include <iostream>
 #include <memory>
+#include <optional>
 
 #include "app/application.h"
 #include "app/config_store.h"
 #include "bootstrap/legacymigration.h"
 #include "bootstrap/single_instance.h"
 #include "bootstrap/startupinfo.h"
-#include "mainwindow.h"
 #include "librats/util/logger.h"
+#include "mainwindow.h"
 #include "version.h"
 
 #ifdef _WIN32
@@ -98,8 +99,21 @@ static void signalHandler(int)
 // ============================================================================
 // Shared startup, used identically by console and GUI modes.
 // ============================================================================
+// Parse an on/off style CLI value. Returns nullopt for anything unrecognised so
+// the caller can reject it loudly instead of silently picking a default.
+static std::optional<bool> parseBoolOption(const QString& value)
+{
+    const QString v = value.trimmed().toLower();
+    if (v == QLatin1String("on") || v == QLatin1String("true") || v == QLatin1String("yes") || v == QLatin1String("1"))
+        return true;
+    if (v == QLatin1String("off") || v == QLatin1String("false") || v == QLatin1String("no") || v == QLatin1String("0"))
+        return false;
+    return std::nullopt;
+}
+
 static void addCommonOptions(QCommandLineParser& parser, QCommandLineOption& port, QCommandLineOption& dhtPort,
-    QCommandLineOption& dataDir, QCommandLineOption& maxPeers, QCommandLineOption& spider, QCommandLineOption& console)
+    QCommandLineOption& dataDir, QCommandLineOption& maxPeers, QCommandLineOption& spider, QCommandLineOption& console,
+    QCommandLineOption& shareDb)
 {
     parser.setApplicationDescription(QStringLiteral("Rats Search - BitTorrent P2P Search Engine"));
     parser.addHelpOption();
@@ -110,6 +124,7 @@ static void addCommonOptions(QCommandLineParser& parser, QCommandLineOption& por
     parser.addOption(dataDir);
     parser.addOption(maxPeers);
     parser.addOption(spider);
+    parser.addOption(shareDb);
 }
 
 static QString resolveDataDirectory(QCommandLineParser& parser, const QCommandLineOption& dataDirOption)
@@ -197,8 +212,13 @@ int main(int argc, char* argv[])
     QCommandLineOption dataDirOption(QStringList() << "data-dir", QStringLiteral("Data directory"), "path");
     QCommandLineOption maxPeersOption(QStringList() << "m" << "max-peers", QStringLiteral("Max P2P connections"), "n");
     QCommandLineOption spiderOption(QStringList() << "s" << "spider", QStringLiteral("Force-enable the DHT spider"));
+    QCommandLineOption shareDbOption(QStringList() << "share-db",
+        QStringLiteral("Serve the whole database to peers that ask: on|off "
+                       "(overrides the databaseSharing config key for this run)"),
+        "on|off");
     QCommandLineParser parser;
-    addCommonOptions(parser, portOption, dhtPortOption, dataDirOption, maxPeersOption, spiderOption, consoleOption);
+    addCommonOptions(
+        parser, portOption, dhtPortOption, dataDirOption, maxPeersOption, spiderOption, consoleOption, shareDbOption);
     parser.process(*qapp);
 
     const QString dataDir = resolveDataDirectory(parser, dataDirOption);
@@ -229,6 +249,13 @@ int main(int argc, char* argv[])
     options.dhtPort = parser.isSet(dhtPortOption) ? parser.value(dhtPortOption).toInt() : 0;
     options.maxPeers = parser.isSet(maxPeersOption) ? parser.value(maxPeersOption).toInt() : 0;
     options.forceSpider = parser.isSet(spiderOption);
+    if (parser.isSet(shareDbOption)) {
+        options.shareDatabase = parseBoolOption(parser.value(shareDbOption));
+        if (!options.shareDatabase) {
+            qCritical() << "Invalid --share-db value:" << parser.value(shareDbOption) << "- expected on or off";
+            return 1;
+        }
+    }
 
     if (consoleMode)
         return runConsoleApplication(*qapp, std::move(options));
