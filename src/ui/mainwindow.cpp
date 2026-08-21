@@ -64,6 +64,7 @@
 #include <QInputDialog>
 #include <QJsonArray>
 #include <QJsonObject>
+#include <QJsonValue>
 #include <QLabel>
 #include <QLineEdit>
 #include <QMenu>

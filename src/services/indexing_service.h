@@ -5,6 +5,7 @@
 
 #include <QObject>
 #include <QVector>
+#include <utility>
 
 namespace rats::data {
 class TorrentRepository;
@@ -61,7 +62,17 @@ public:
     // scrape per torrent, which is right for a trickle of crawled torrents and
     // catastrophic for a million imported ones. Listeners that care about mass
     // imports watch the repository's statisticsChanged instead.
-    BatchResult insertBatch(QVector<domain::Torrent> torrents, const BatchOptions& options = {});
+    //
+    // `options` has no default argument on purpose: GCC refuses to evaluate a
+    // nested struct's member initialisers while the enclosing class is still
+    // incomplete, which is exactly what a `= BatchOptions()` default would need.
+    // The one-argument overload below does the same job from a context where the
+    // class is complete.
+    BatchResult insertBatch(QVector<domain::Torrent> torrents, const BatchOptions& options);
+    BatchResult insertBatch(QVector<domain::Torrent> torrents)
+    {
+        return insertBatch(std::move(torrents), BatchOptions());
+    }
 
     // Whether a torrent passes the current filter policy (used by the
     // maintenance sweep that re-applies filters to the existing index).

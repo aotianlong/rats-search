@@ -85,12 +85,24 @@ public:
     bool exportToFile(const QString& path, QString* error = nullptr);
 
     // Start merging the dump at `path` into the local index.
-    bool importFromFile(const QString& path, const ImportOptions& options = {}, QString* error = nullptr);
+    //
+    // `options` carries no default argument: GCC refuses to evaluate a nested
+    // struct's member initialisers while the enclosing class is still incomplete,
+    // so the convenience overloads below supply the defaults instead.
+    bool importFromFile(const QString& path, const ImportOptions& options, QString* error = nullptr);
+    bool importFromFile(const QString& path, QString* error = nullptr)
+    {
+        return importFromFile(path, ImportOptions(), error);
+    }
 
     // Ask `peerId` for its whole index. The peer answers asynchronously; watch
     // syncProgress/syncFinished for the outcome. `options` applies to the merge
     // that runs once the dump has arrived.
-    bool requestFromPeer(const QString& peerId, const ImportOptions& options = {}, QString* error = nullptr);
+    bool requestFromPeer(const QString& peerId, const ImportOptions& options, QString* error = nullptr);
+    bool requestFromPeer(const QString& peerId, QString* error = nullptr)
+    {
+        return requestFromPeer(peerId, ImportOptions(), error);
+    }
 
     // Ask the running operation to stop. Export removes its partial file; import
     // keeps what it merged and saves a resume point.
