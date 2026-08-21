@@ -31,6 +31,7 @@
 #include "net/p2p_transport.h"
 #include "peer/peer_api.h"
 #include "rest/api_router.h"
+#include "services/database_sync_service.h"
 #include "services/download_service.h"
 #include "services/indexing_service.h"
 #include "services/migration_service.h"
@@ -60,6 +61,7 @@
 #include <QFontMetrics>
 #include <QHBoxLayout>
 #include <QHeaderView>
+#include <QInputDialog>
 #include <QJsonArray>
 #include <QJsonObject>
 #include <QLabel>
@@ -343,6 +345,20 @@ void MainWindow::setupMenuBar()
     createTorrentAction->setShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_N));
     createTorrentAction->setToolTip(tr("Create a torrent from a file or folder and start seeding"));
     connect(createTorrentAction, &QAction::triggered, this, &MainWindow::createTorrent);
+
+    fileMenu->addSeparator();
+
+    QAction* exportDbAction = fileMenu->addAction(tr("📦 &Export Database..."));
+    exportDbAction->setToolTip(tr("Write the whole search index to a file you can share"));
+    connect(exportDbAction, &QAction::triggered, this, &MainWindow::exportDatabase);
+
+    QAction* importDbAction = fileMenu->addAction(tr("📂 &Import Database..."));
+    importDbAction->setToolTip(tr("Merge a database file from another user into your index"));
+    connect(importDbAction, &QAction::triggered, this, &MainWindow::importDatabase);
+
+    QAction* pullDbAction = fileMenu->addAction(tr("🌐 Download Database from &Peer..."));
+    pullDbAction->setToolTip(tr("Ask a connected peer to send you its whole index"));
+    connect(pullDbAction, &QAction::triggered, this, &MainWindow::pullDatabaseFromPeer);
 
     fileMenu->addSeparator();
 
@@ -679,6 +695,44 @@ void MainWindow::connectServiceSignals()
             });
         connect(exporter, &rats::service::TorrentExporter::statusMessage, this,
             [this](const QString& message, int timeoutMs) { showStatusMessage(message, timeoutMs); });
+    }
+
+    // Whole-database export/import/peer transfer. The service does the work on a
+    // worker thread and reports the same JSON payload the REST API pushes; here
+    // it becomes a status-bar line and a final message box.
+    if (app_->databaseSync()) {
+        auto* sync = app_->databaseSync();
+        connect(sync, &rats::service::DatabaseSyncService::syncProgress, this,
+            [this](const QJsonObject& info) { showStatusMessage(databaseSyncStatusText(info), 0); });
+        connect(sync, &rats::service::DatabaseSyncService::statusMessage, this,
+            [this](const QString& message, int timeoutMs) { showStatusMessage(message, timeoutMs); });
+        connect(sync, &rats::service::DatabaseSyncService::syncFinished, this,
+            [this](bool success, const QJsonObject& summary) {
+                if (!success) {
+                    showStatusMessage(tr("Database sync failed."), 5000);
+                    QMessageBox::warning(this, tr("Database Sync"),
+                        tr("The database sync did not finish.\n\n%1").arg(summary["error"].toString()));
+                    return;
+                }
+
+                const QString operation = summary["operation"].toString();
+                const qint64 processed = summary["processed"].toVariant().toLongLong();
+                if (operation == QLatin1String("export")) {
+                    showStatusMessage(tr("Exported %1 torrents.").arg(processed), 8000);
+                    QMessageBox::information(this, tr("Export Database"),
+                        tr("Exported %1 torrents to:\n%2").arg(processed).arg(summary["path"].toString()));
+                    return;
+                }
+                if (operation == QLatin1String("peerServe")) {
+                    showStatusMessage(tr("Sent the database to a peer."), 8000);
+                    return;
+                }
+                const qint64 inserted = summary["inserted"].toVariant().toLongLong();
+                const qint64 merged = summary["merged"].toVariant().toLongLong();
+                showStatusMessage(tr("Imported %1 new torrents (%2 already known).").arg(inserted).arg(merged), 8000);
+                QMessageBox::information(this, tr("Import Database"),
+                    tr("Merge finished.\n\n%1 new torrents added\n%2 already in your index").arg(inserted).arg(merged));
+            });
     }
 
     // Background data migrations run (in a worker thread) while the window is up
@@ -1738,6 +1792,147 @@ void MainWindow::createTorrent()
     });
 
     dialog.exec();
+}
+
+// ============================================================================
+// Whole-database replication
+// ============================================================================
+
+QString MainWindow::databaseSyncStatusText(const QJsonObject& info) const
+{
+    const QString stage = info["stage"].toString();
+    const qint64 processed = info["processed"].toVariant().toLongLong();
+    const qint64 total = info["total"].toVariant().toLongLong();
+    const qint64 bytes = info["bytes"].toVariant().toLongLong();
+    const qint64 totalBytes = info["totalBytes"].toVariant().toLongLong();
+
+    if (stage == QLatin1String("transferring")) {
+        if (totalBytes > 0) {
+            return tr("Transferring database: %1 / %2 (%3%)")
+                .arg(rats::ui::formatSize(bytes), rats::ui::formatSize(totalBytes))
+                .arg((bytes * 100) / totalBytes);
+        }
+        return tr("Transferring database: %1").arg(rats::ui::formatSize(bytes));
+    }
+    if (stage == QLatin1String("waiting") || stage == QLatin1String("preparing"))
+        return tr("Waiting for the peer to prepare its database…");
+
+    const QString what = stage == QLatin1String("exporting") ? tr("Exporting database") : tr("Importing database");
+    if (total > 0)
+        return tr("%1: %2 / %3 (%4%)").arg(what).arg(processed).arg(total).arg((processed * 100) / total);
+    return tr("%1: %2 torrents").arg(what).arg(processed);
+}
+
+void MainWindow::exportDatabase()
+{
+    if (!app_->api())
+        return;
+
+    const QString suggested = QDir(QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation))
+                                  .absoluteFilePath(QStringLiteral("rats-index-%1.ratsdb")
+                                          .arg(QDateTime::currentDateTime().toString(QStringLiteral("yyyyMMdd"))));
+
+    const QString path = QFileDialog::getSaveFileName(
+        this, tr("Export Database"), suggested, tr("Rats Database (*.ratsdb);;All Files (*)"));
+    if (path.isEmpty())
+        return;
+
+    app_->api()->call("database.export", QJsonObject { { "path", path } }, [this](const Result& response) {
+        if (!response.ok()) {
+            QMessageBox::warning(
+                this, tr("Export Database"), tr("Could not start the export.\n\n%1").arg(response.error()));
+        }
+        // Progress and the final summary arrive through the sync service signals
+        // wired in the constructor.
+    });
+}
+
+void MainWindow::importDatabase()
+{
+    if (!app_->api())
+        return;
+
+    const QString path = QFileDialog::getOpenFileName(this, tr("Import Database"),
+        QStandardPaths::writableLocation(QStandardPaths::DownloadLocation),
+        tr("Rats Database (*.ratsdb);;All Files (*)"));
+    if (path.isEmpty())
+        return;
+
+    // Importing merges — nothing local is replaced — but a foreign index can be
+    // huge and carry content this user filters out, so both facts are stated
+    // before it starts.
+    QMessageBox confirm(this);
+    confirm.setIcon(QMessageBox::Question);
+    confirm.setWindowTitle(tr("Import Database"));
+    confirm.setText(tr("Merge this database into your index?"));
+    confirm.setInformativeText(
+        tr("Torrents you already have are kept; only new ones are added.\n\n%1").arg(QFileInfo(path).fileName()));
+    confirm.setStandardButtons(QMessageBox::Yes | QMessageBox::Cancel);
+    confirm.setDefaultButton(QMessageBox::Yes);
+
+    QCheckBox* filterBox = new QCheckBox(tr("Apply my content filters to the imported torrents"), &confirm);
+    filterBox->setChecked(true);
+    confirm.setCheckBox(filterBox);
+
+    if (confirm.exec() != QMessageBox::Yes)
+        return;
+
+    app_->api()->call("database.import", QJsonObject { { "path", path }, { "applyFilters", filterBox->isChecked() } },
+        [this](const Result& response) {
+            if (!response.ok()) {
+                QMessageBox::warning(
+                    this, tr("Import Database"), tr("Could not start the import.\n\n%1").arg(response.error()));
+            }
+        });
+}
+
+void MainWindow::pullDatabaseFromPeer()
+{
+    if (!app_->api())
+        return;
+
+    app_->api()->call("peers.list", QJsonObject {}, [this](const Result& response) {
+        if (!response.ok()) {
+            QMessageBox::warning(this, tr("Download Database"), response.error());
+            return;
+        }
+
+        const QJsonArray peers = response.data().toArray();
+        if (peers.isEmpty()) {
+            QMessageBox::information(this, tr("Download Database"),
+                tr("No peers are connected right now. Try again once the P2P network is up."));
+            return;
+        }
+
+        // Label each peer with what it claims to hold, so the choice is informed
+        // rather than a list of hex ids.
+        QStringList labels;
+        QStringList ids;
+        for (const QJsonValue& value : peers) {
+            const QJsonObject peer = value.toObject();
+            const QString id = peer["peerId"].toString();
+            const qint64 torrents = peer["torrents"].toVariant().toLongLong();
+            ids << id;
+            labels << tr("%1… — %2 torrents (%3)").arg(id.left(12)).arg(torrents).arg(peer["clientVersion"].toString());
+        }
+
+        bool accepted = false;
+        const QString chosen = QInputDialog::getItem(
+            this, tr("Download Database"), tr("Ask which peer for its whole index?"), labels, 0, false, &accepted);
+        if (!accepted || chosen.isEmpty())
+            return;
+
+        const int index = labels.indexOf(chosen);
+        if (index < 0)
+            return;
+
+        app_->api()->call("database.pull", QJsonObject { { "peer", ids.at(index) } }, [this](const Result& result) {
+            if (!result.ok()) {
+                QMessageBox::warning(
+                    this, tr("Download Database"), tr("Could not ask the peer.\n\n%1").arg(result.error()));
+            }
+        });
+    });
 }
 
 // ============================================================================

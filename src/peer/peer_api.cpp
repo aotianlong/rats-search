@@ -5,6 +5,7 @@
 #include "data/torrent_repository.h"
 #include "domain/torrent_codec.h"
 #include "net/p2p_transport.h"
+#include "services/database_sync_service.h"
 #include "services/feed_service.h"
 #include "services/indexing_service.h"
 #include "services/replication_service.h"
@@ -65,8 +66,8 @@ void PeerApi::install()
     }
 
     // --- Requests we answer -------------------------------------------------
-    transport->registerHandler("searchTorrent",
-        [this](const QString& peerId, const QJsonObject& data) { handleSearchRequest(peerId, data); });
+    transport->registerHandler(
+        "searchTorrent", [this](const QString& peerId, const QJsonObject& data) { handleSearchRequest(peerId, data); });
     transport->registerHandler("searchFiles",
         [this](const QString& peerId, const QJsonObject& data) { handleSearchFilesRequest(peerId, data); });
     transport->registerHandler("topTorrents",
@@ -77,6 +78,8 @@ void PeerApi::install()
         "feed", [this](const QString& peerId, const QJsonObject& data) { handleFeedRequest(peerId, data); });
     transport->registerHandler("randomTorrents",
         [this](const QString& peerId, const QJsonObject& data) { handleRandomTorrentsRequest(peerId, data); });
+    transport->registerHandler("databaseRequest",
+        [this](const QString& peerId, const QJsonObject& data) { handleDatabaseRequest(peerId, data); });
 
     // --- Responses we consume ----------------------------------------------
     transport->registerHandler("searchTorrent_response",
@@ -89,6 +92,8 @@ void PeerApi::install()
         "feed_response", [this](const QString& peerId, const QJsonObject& data) { handleFeedResponse(peerId, data); });
     transport->registerHandler("randomTorrents_response",
         [this](const QString& peerId, const QJsonObject& data) { handleRandomTorrentsResponse(peerId, data); });
+    transport->registerHandler("databaseRequest_response",
+        [this](const QString& peerId, const QJsonObject& data) { handleDatabaseResponse(peerId, data); });
     transport->registerHandler("torrentAnnounce",
         [this](const QString& peerId, const QJsonObject& data) { handleTorrentAnnounce(peerId, data); });
 
@@ -225,6 +230,18 @@ void PeerApi::handleRandomTorrentsRequest(const QString& peerId, const QJsonObje
     app_->transport()->sendMessage(peerId, "randomTorrents_response", QJsonObject { { "torrents", array } });
 }
 
+void PeerApi::handleDatabaseRequest(const QString& peerId, const QJsonObject& data)
+{
+    qInfo() << "[PeerApi] databaseRequest from" << shortId(peerId);
+    service::DatabaseSyncService* sync = app_->databaseSync();
+    if (!sync) {
+        app_->transport()->sendMessage(peerId, "databaseRequest_response",
+            QJsonObject { { "accepted", false }, { "reason", QStringLiteral("unsupported") } });
+        return;
+    }
+    sync->handlePeerRequest(peerId, data);
+}
+
 // ============================================================================
 // Responses we consume
 // ============================================================================
@@ -325,6 +342,14 @@ void PeerApi::handleRandomTorrentsResponse(const QString& peerId, const QJsonObj
         qInfo() << "[PeerApi] replicated" << inserted << "torrents from" << shortId(peerId);
 }
 
+void PeerApi::handleDatabaseResponse(const QString& peerId, const QJsonObject& data)
+{
+    qInfo() << "[PeerApi] databaseRequest_response from" << shortId(peerId)
+            << (data["accepted"].toBool(false) ? "accepted" : "refused");
+    if (service::DatabaseSyncService* sync = app_->databaseSync())
+        sync->handlePeerResponse(peerId, data);
+}
+
 void PeerApi::handleTorrentAnnounce(const QString& peerId, const QJsonObject& data)
 {
     const QString hash = data["info_hash"].toString();
@@ -347,8 +372,8 @@ void PeerApi::requestTorrent(const QString& peerId, const QString& hash, bool in
         return;
 
     qInfo() << "[PeerApi] requesting torrent" << hash.left(8) << "from" << shortId(peerId);
-    transport->sendMessage(peerId, "torrent",
-        QJsonObject { { "hash", hash }, { "options", QJsonObject { { "files", includeFiles } } } });
+    transport->sendMessage(
+        peerId, "torrent", QJsonObject { { "hash", hash }, { "options", QJsonObject { { "files", includeFiles } } } });
 }
 
 // ============================================================================

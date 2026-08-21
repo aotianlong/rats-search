@@ -19,6 +19,7 @@ class StorageManager;
 class Bittorrent;
 class PeerExchange;
 class HolePunch;
+class FileTransfer;
 } // namespace librats
 
 namespace rats::net {
@@ -60,6 +61,23 @@ public:
     using MessageHandler = std::function<void(const QString& peerId, const QJsonObject& data)>;
     void registerHandler(const QString& type, MessageHandler handler);
 
+    // File transfer ------------------------------------------------------------
+    // Bulk file exchange with a single peer, used for whole-database dumps. The
+    // model is push: the sender offers, the receiver accepts (choosing where the
+    // bytes land) or rejects, then the file streams with integrity checking and
+    // backpressure. Everything below marshals onto this object's thread, so the
+    // signals arrive where the services live.
+    bool isFileTransferAvailable() const;
+
+    // Offer `path` to `peerId`. Returns the transfer id, or 0 if the offer could
+    // not be made. Nothing is sent until the peer accepts.
+    quint64 sendFile(const QString& peerId, const QString& path);
+    // Answer an offer surfaced by fileOffered(). Accepting streams the file into
+    // `destPath` (its directory must exist).
+    bool acceptFile(const QString& peerId, quint64 transferId, const QString& destPath);
+    bool rejectFile(const QString& peerId, quint64 transferId);
+    bool cancelFile(const QString& peerId, quint64 transferId);
+
     // BitTorrent subsystem (optional feature)
     bool isBitTorrentEnabled() const;
 
@@ -73,6 +91,17 @@ signals:
     void peerCountChanged(int count);
     void peerConnected(const QString& peerId);
     void peerDisconnected(const QString& peerId);
+
+    // A peer offered us a file. Answer with acceptFile()/rejectFile() — an offer
+    // left unanswered is dropped by the sender's idle timeout.
+    void fileOffered(const QString& peerId, quint64 transferId, const QString& name, qint64 size);
+    // Progress for both directions; `sending` tells them apart.
+    void fileTransferProgress(
+        const QString& peerId, quint64 transferId, bool sending, qint64 transferred, qint64 total, double bytesPerSec);
+    // Terminal outcome. `path` is the destination file on the receiving side and
+    // empty on the sending side. Carries no peer id — librats reports completion
+    // by transfer id alone, so callers correlate with the id they were given.
+    void fileTransferFinished(quint64 transferId, bool success, const QString& path);
 
 private:
     struct Private;

@@ -5,6 +5,8 @@
 
 #include <QHash>
 #include <QObject>
+#include <QSet>
+#include <QStringList>
 #include <QVector>
 #include <atomic>
 #include <optional>
@@ -57,6 +59,17 @@ public:
     bool exists(const QString& hash);
     std::optional<domain::Torrent> get(const QString& hash, bool includeFiles = false);
 
+    // Bulk variants used by the dump importer, where a per-row round trip would
+    // dominate the runtime. `hashes` must not exceed Manticore's max_matches
+    // (1000) — callers batch.
+    QSet<QString> existingHashes(const QStringList& hashes);
+    QHash<QString, domain::Torrent> getMany(const QStringList& hashes);
+    // Insert torrents already known to be absent, in as few statements as the
+    // packet limit allows. Statistics move once for the whole batch instead of
+    // once per row, so a million-row import does not emit a million signals.
+    // Returns the number of rows written.
+    int addMany(const QVector<domain::Torrent>& torrents);
+
     // Search -------------------------------------------------------------------
     QVector<domain::SearchHit> searchTorrents(const SearchQuery& query);
     QVector<domain::SearchHit> searchFiles(const SearchQuery& query);
@@ -94,6 +107,10 @@ private:
     domain::Torrent rowToTorrent(const QVariantMap& row) const;
     QString buildNameIndex(const domain::Torrent& torrent) const;
     void saveFiles(const QString& hash, const QVector<domain::File>& files);
+    // Column map for one torrents row, id included. Shared by add() and addMany().
+    QVariantMap torrentRow(const domain::Torrent& torrent);
+    // Column map for one files row (the "\n"-joined path/size blobs).
+    QVariantMap filesRow(const QString& hash, const QVector<domain::File>& files);
     QVector<domain::Torrent> selectTorrents(const QString& sql, const QVariantList& params = {});
 
     // Map a user-supplied sort key to a whitelisted column, or empty if unknown.

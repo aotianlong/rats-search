@@ -57,15 +57,8 @@ void TorrentRepository::primeFromDatabase()
 // CRUD
 // ---------------------------------------------------------------------------
 
-bool TorrentRepository::add(const Torrent& t, bool skipExistsCheck)
+QVariantMap TorrentRepository::torrentRow(const Torrent& t)
 {
-    if (!t.isValid())
-        return false;
-    if (!skipExistsCheck && exists(t.hash)) {
-        qInfo() << "[TorrentRepository] already present:" << t.hash;
-        return true;
-    }
-
     QVariantMap values;
     values["id"] = static_cast<qlonglong>(nextTorrentId_++);
     values["hash"] = t.hash;
@@ -85,8 +78,43 @@ bool TorrentRepository::add(const Torrent& t, bool skipExistsCheck)
     values["trackersChecked"] = t.trackersChecked.isValid() ? t.trackersChecked.toSecsSinceEpoch() : 0;
     values["good"] = t.good;
     values["bad"] = t.bad;
-    if (!t.info.isEmpty())
-        values["info"] = t.info;
+    // A multi-row INSERT takes its column list from the first row, so every row
+    // must carry the same keys — "info" is always present, empty object or not.
+    values["info"] = t.info;
+    return values;
+}
+
+QVariantMap TorrentRepository::filesRow(const QString& hash, const QVector<File>& files)
+{
+    QStringList paths;
+    QStringList sizes;
+    paths.reserve(files.size());
+    sizes.reserve(files.size());
+    for (const File& f : files) {
+        paths << f.path;
+        sizes << QString::number(f.size);
+    }
+
+    QVariantMap values;
+    values["id"] = static_cast<qlonglong>(nextFilesId_++);
+    values["hash"] = hash;
+    values["path"] = paths.join(QLatin1Char('\n'));
+    values["size"] = sizes.join(QLatin1Char('\n'));
+    return values;
+}
+
+bool TorrentRepository::add(const Torrent& t, bool skipExistsCheck)
+{
+    if (!t.isValid())
+        return false;
+    if (!skipExistsCheck && exists(t.hash)) {
+        qInfo() << "[TorrentRepository] already present:" << t.hash;
+        return true;
+    }
+
+    QVariantMap values = torrentRow(t);
+    if (t.info.isEmpty())
+        values.remove("info");
 
     if (!db_->insert(kTorrents, values))
         return false;
@@ -357,6 +385,69 @@ QVector<Torrent> TorrentRepository::random(int limit, bool includeFiles)
     return results;
 }
 
+QSet<QString> TorrentRepository::existingHashes(const QStringList& hashes)
+{
+    QSet<QString> found;
+    if (hashes.isEmpty())
+        return found;
+
+    const QString sql = SelectQuery(kTorrents)
+                            .columns(QStringLiteral("hash"))
+                            .whereIn(QStringLiteral("hash"), hashes)
+                            .limit(0, hashes.size())
+                            .build();
+    for (const auto& row : db_->query(sql))
+        found.insert(row.value(QStringLiteral("hash")).toString());
+    return found;
+}
+
+QHash<QString, Torrent> TorrentRepository::getMany(const QStringList& hashes)
+{
+    QHash<QString, Torrent> result;
+    if (hashes.isEmpty())
+        return result;
+
+    const QString sql = SelectQuery(kTorrents).whereIn(QStringLiteral("hash"), hashes).limit(0, hashes.size()).build();
+    for (const Torrent& t : selectTorrents(sql))
+        result.insert(t.hash, t);
+    return result;
+}
+
+int TorrentRepository::addMany(const QVector<Torrent>& torrents)
+{
+    if (torrents.isEmpty())
+        return 0;
+
+    QVector<QVariantMap> torrentRows;
+    QVector<QVariantMap> fileRows;
+    torrentRows.reserve(torrents.size());
+    qint64 addedFiles = 0;
+    qint64 addedSize = 0;
+
+    for (const Torrent& t : torrents) {
+        if (!t.isValid())
+            continue;
+        torrentRows.append(torrentRow(t));
+        if (!t.fileList.isEmpty())
+            fileRows.append(filesRow(t.hash, t.fileList));
+        addedFiles += t.files;
+        addedSize += t.size;
+    }
+    if (torrentRows.isEmpty())
+        return 0;
+
+    if (!db_->insertMany(kTorrents, torrentRows))
+        return 0;
+    if (!fileRows.isEmpty())
+        db_->insertMany(kFiles, fileRows);
+
+    stats_.torrents += torrentRows.size();
+    stats_.files += addedFiles;
+    stats_.totalSize += addedSize;
+    emit statisticsChanged(stats_.torrents, stats_.files, stats_.totalSize);
+    return torrentRows.size();
+}
+
 QVector<Torrent> TorrentRepository::pageAfterId(qint64 afterId, int limit)
 {
     SelectQuery builder(kTorrents);
@@ -385,7 +476,9 @@ QHash<QString, QVector<File>> TorrentRepository::filesOf(const QStringList& hash
     if (hashes.isEmpty())
         return result;
 
-    const QString sql = SelectQuery(kFiles).whereIn(QStringLiteral("hash"), hashes).build();
+    // The LIMIT is not optional: Manticore returns 20 rows for a SELECT without
+    // one, which would silently drop most of the batch.
+    const QString sql = SelectQuery(kFiles).whereIn(QStringLiteral("hash"), hashes).limit(0, hashes.size()).build();
     for (const auto& row : db_->query(sql)) {
         const QString hash = row.value(QStringLiteral("hash")).toString();
         result[hash]
@@ -400,22 +493,7 @@ void TorrentRepository::saveFiles(const QString& hash, const QVector<File>& file
         return;
 
     db_->remove(kFiles, { { "hash", hash } });
-
-    QStringList paths;
-    QStringList sizes;
-    paths.reserve(files.size());
-    sizes.reserve(files.size());
-    for (const File& f : files) {
-        paths << f.path;
-        sizes << QString::number(f.size);
-    }
-
-    QVariantMap values;
-    values["id"] = static_cast<qlonglong>(nextFilesId_++);
-    values["hash"] = hash;
-    values["path"] = paths.join(QLatin1Char('\n'));
-    values["size"] = sizes.join(QLatin1Char('\n'));
-    db_->insert(kFiles, values);
+    db_->insert(kFiles, filesRow(hash, files));
 }
 
 // ---------------------------------------------------------------------------

@@ -34,6 +34,7 @@ class TorrentExporter;
 class FeedService;
 class VotingService;
 class ReplicationService;
+class DatabaseSyncService;
 class TrackerService;
 class PeerRegistry;
 class UpdateService;
@@ -93,6 +94,7 @@ public:
     service::FeedService* feed() const;
     service::VotingService* voting() const;
     service::ReplicationService* replication() const;
+    service::DatabaseSyncService* databaseSync() const;
     service::TrackerService* trackers() const;
     service::PeerRegistry* peers() const;
     service::UpdateService* updates() const;

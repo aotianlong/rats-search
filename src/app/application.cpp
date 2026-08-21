@@ -17,6 +17,7 @@
 #include "peer/peer_api.h"
 #include "rest/api_router.h"
 #include "rest/api_server.h"
+#include "services/database_sync_service.h"
 #include "services/download_service.h"
 #include "services/feed_service.h"
 #include "services/filter_policy.h"
@@ -69,6 +70,7 @@ struct Application::Private {
     std::unique_ptr<service::P2PStore> p2pStore;
     std::unique_ptr<service::VotingService> voting;
     std::unique_ptr<service::ReplicationService> replication;
+    std::unique_ptr<service::DatabaseSyncService> databaseSync;
     std::unique_ptr<service::TrackerService> trackers;
     std::unique_ptr<service::MigrationService> migrations;
     std::unique_ptr<service::UpdateService> updates;
@@ -132,6 +134,8 @@ Application::Application(Options options, QObject* parent) : QObject(parent), d_
     d_->p2pStore = std::make_unique<service::P2PStore>(d_->transport.get());
     d_->voting = std::make_unique<service::VotingService>(d_->p2pStore.get(), d_->torrents.get());
     d_->replication = std::make_unique<service::ReplicationService>(d_->transport.get());
+    d_->databaseSync = std::make_unique<service::DatabaseSyncService>(
+        d_->torrents.get(), d_->indexing.get(), d_->transport.get(), dataDir, d_->options.clientVersion);
     d_->trackers
         = std::make_unique<service::TrackerService>(d_->swarmScraper.get(), d_->siteScraper.get(), d_->torrents.get());
     d_->migrations = std::make_unique<service::MigrationService>(
@@ -164,6 +168,7 @@ void Application::applyConfig()
     d_->trackers->setCountScrapingEnabled(c->trackersEnabled());
     d_->trackers->setInfoScrapingEnabled(c->trackersEnabled());
     d_->replication->setEnabled(c->p2pReplication());
+    d_->databaseSync->setSharingEnabled(c->databaseSharing());
     d_->transport->setPortMappingEnabled(c->upnpEnabled());
     d_->transport->setHolePunchEnabled(c->holePunchEnabled());
     d_->crawler->setWalkInterval(c->spiderWalkInterval());
@@ -276,6 +281,9 @@ void Application::stop()
     d_->downloads->saveSession(d_->options.dataDirectory + QStringLiteral("/torrents_session.json"));
     d_->feed->save();
     d_->replication->stop();
+    // The sync worker reads/writes the database on its own thread; it has to be
+    // gone before Manticore is torn down under it.
+    d_->databaseSync->shutdown();
     d_->transport->stop();
     d_->manticore->stop();
 
@@ -347,6 +355,10 @@ service::VotingService* Application::voting() const
 service::ReplicationService* Application::replication() const
 {
     return d_->replication.get();
+}
+service::DatabaseSyncService* Application::databaseSync() const
+{
+    return d_->databaseSync.get();
 }
 service::TrackerService* Application::trackers() const
 {

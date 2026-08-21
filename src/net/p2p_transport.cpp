@@ -14,6 +14,7 @@
 #include "librats/peer/peer.h"
 #include "librats/peer/peer_id.h"
 #include "librats/subsystems/dht_discovery.h"
+#include "librats/subsystems/file_transfer.h"
 #include "librats/subsystems/hole_punch.h"
 #include "librats/subsystems/mdns_discovery.h"
 #include "librats/subsystems/message_json.h"
@@ -32,6 +33,7 @@
 #pragma pop_macro("emit")
 
 #include <QDebug>
+#include <QDir>
 #include <QJsonDocument>
 #include <QTimer>
 
@@ -77,6 +79,7 @@ struct P2PTransport::Private {
     librats::ReconnectionService* reconnect = nullptr;
     librats::PeerExchange* pex = nullptr;
     librats::HolePunch* holePunch = nullptr;
+    librats::FileTransfer* fileTransfer = nullptr;
     librats::StorageManager* storage = nullptr;
     librats::Bittorrent* bittorrent = nullptr;
 
@@ -102,6 +105,7 @@ struct P2PTransport::Private {
     int peerCount() const { return node ? static_cast<int>(node->peer_count()) : 0; }
 
     void setupCallbacks();
+    void setupFileTransferCallbacks();
     void registerDispatcher(const QString& type);
     void dispatchMessage(const QString& peerId, const QString& type, const QJsonObject& data);
     void updatePeerCount();
@@ -128,6 +132,56 @@ void P2PTransport::Private::setupCallbacks()
         qInfo() << "Peer disconnected:" << peerId.left(8) << "total peers:" << peerCount();
         emit q->peerDisconnected(peerId);
         requestPeerCountUpdate();
+    });
+}
+
+// File-transfer callbacks all fire on librats threads (reactor / worker / disk
+// pool). Every one of them hops to q's thread before emitting, for the same
+// reason dispatchMessage() does: the services that react to these signals are
+// single-threaded, and posting to `q` also lets Qt drop the event if the
+// transport is torn down first.
+void P2PTransport::Private::setupFileTransferCallbacks()
+{
+    if (!fileTransfer) {
+        return;
+    }
+
+    fileTransfer->on_offer([this](const librats::FileTransfer::Offer& offer) {
+        const QString peerId = QString::fromStdString(offer.from.to_hex());
+        const quint64 id = offer.id;
+        const QString name = QString::fromStdString(offer.name);
+        const qint64 size = static_cast<qint64>(offer.size);
+        // A directory offer is never something this app asked for; refuse it here
+        // rather than letting a listener forget to.
+        if (offer.is_directory) {
+            fileTransfer->reject(offer.from, offer.id);
+            return;
+        }
+        QMetaObject::invokeMethod(
+            q, [this, peerId, id, name, size]() { emit q->fileOffered(peerId, id, name, size); }, Qt::QueuedConnection);
+    });
+
+    fileTransfer->on_progress([this](const librats::FileTransfer::Progress& progress) {
+        const QString peerId = QString::fromStdString(progress.peer.to_hex());
+        const quint64 id = progress.id;
+        const bool sending = progress.direction == librats::FileTransfer::Direction::Sending;
+        const qint64 done = static_cast<qint64>(progress.bytes_transferred);
+        const qint64 total = static_cast<qint64>(progress.total_bytes);
+        const double rate = progress.transfer_rate_bps;
+        QMetaObject::invokeMethod(
+            q,
+            [this, peerId, id, sending, done, total, rate]() {
+                emit q->fileTransferProgress(peerId, id, sending, done, total, rate);
+            },
+            Qt::QueuedConnection);
+    });
+
+    fileTransfer->on_complete([this](uint64_t id, bool success, const std::string& path) {
+        const quint64 transferId = id;
+        const QString file = QString::fromStdString(path);
+        QMetaObject::invokeMethod(
+            q, [this, transferId, success, file]() { emit q->fileTransferFinished(transferId, success, file); },
+            Qt::QueuedConnection);
     });
 }
 
@@ -304,6 +358,17 @@ bool P2PTransport::start()
             d_->pex = d_->node->add_subsystem(std::make_unique<librats::PeerExchange>(std::move(pexCfg)));
         }
 
+        // Bulk file exchange (whole-database dumps). Its callbacks fire on librats
+        // threads, so each one hops to q's thread before touching Qt.
+        {
+            const QString transferDir = d_->dataDirectory + QStringLiteral("/dbsync");
+            QDir().mkpath(transferDir); // librats writes in-progress files here
+            librats::FileTransfer::Config ftCfg;
+            ftCfg.temp_directory = transferDir.toStdString();
+            d_->fileTransfer = d_->node->add_subsystem(std::make_unique<librats::FileTransfer>(std::move(ftCfg)));
+            d_->setupFileTransferCallbacks();
+        }
+
 #ifdef RATS_STORAGE
         // Distributed key/value store (used by the voting system).
         {
@@ -336,6 +401,7 @@ bool P2PTransport::start()
             d_->reconnect = nullptr;
             d_->pex = nullptr;
             d_->holePunch = nullptr;
+            d_->fileTransfer = nullptr;
             d_->storage = nullptr;
             d_->bittorrent = nullptr;
             return false;
@@ -396,6 +462,7 @@ void P2PTransport::stop()
     d_->reconnect = nullptr;
     d_->pex = nullptr;
     d_->holePunch = nullptr;
+    d_->fileTransfer = nullptr;
     d_->storage = nullptr;
     d_->bittorrent = nullptr;
     d_->registeredDispatchers.clear();
@@ -507,6 +574,67 @@ void P2PTransport::registerHandler(const QString& type, MessageHandler handler)
     }
 
     qInfo() << "Registered P2P message handler for:" << type;
+}
+
+// =========================================================================
+// File transfer
+// =========================================================================
+
+bool P2PTransport::isFileTransferAvailable() const
+{
+    return isRunning() && d_->fileTransfer != nullptr;
+}
+
+quint64 P2PTransport::sendFile(const QString& peerId, const QString& path)
+{
+    if (!isFileTransferAvailable()) {
+        qWarning() << "Cannot send file: P2P transport not running";
+        return 0;
+    }
+    auto id = librats::PeerId::from_hex(peerId.toStdString());
+    if (!id) {
+        qWarning() << "Cannot send file: invalid peer id" << peerId.left(8);
+        return 0;
+    }
+    return d_->fileTransfer->send_file(*id, path.toStdString());
+}
+
+bool P2PTransport::acceptFile(const QString& peerId, quint64 transferId, const QString& destPath)
+{
+    if (!isFileTransferAvailable()) {
+        return false;
+    }
+    auto id = librats::PeerId::from_hex(peerId.toStdString());
+    if (!id) {
+        return false;
+    }
+    d_->fileTransfer->accept(*id, transferId, destPath.toStdString());
+    return true;
+}
+
+bool P2PTransport::rejectFile(const QString& peerId, quint64 transferId)
+{
+    if (!isFileTransferAvailable()) {
+        return false;
+    }
+    auto id = librats::PeerId::from_hex(peerId.toStdString());
+    if (!id) {
+        return false;
+    }
+    d_->fileTransfer->reject(*id, transferId);
+    return true;
+}
+
+bool P2PTransport::cancelFile(const QString& peerId, quint64 transferId)
+{
+    if (!isFileTransferAvailable()) {
+        return false;
+    }
+    auto id = librats::PeerId::from_hex(peerId.toStdString());
+    if (!id) {
+        return false;
+    }
+    return d_->fileTransfer->cancel(*id, transferId);
 }
 
 // =========================================================================

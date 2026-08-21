@@ -11,6 +11,7 @@
 #include "net/p2p_transport.h"
 #include "net/torrent_engine.h"
 #include "peer/peer_api.h"
+#include "services/database_sync_service.h"
 #include "services/download_service.h"
 #include "services/feed_service.h"
 #include "services/filter_policy.h"
@@ -209,8 +210,8 @@ void peerLookup(ApiRouter* ctx, app::Application* app, const QString& peerId, co
             respond(Result::success(payload));
     };
 
-    *conn = QObject::connect(peerApi, &peer::PeerApi::remoteTorrentReceived, ctx,
-        [=](const QString& h, const QJsonObject& data) {
+    *conn = QObject::connect(
+        peerApi, &peer::PeerApi::remoteTorrentReceived, ctx, [=](const QString& h, const QJsonObject& data) {
             if (h == hash)
                 finish(true, data);
         });
@@ -276,6 +277,14 @@ void ApiRouter::wireEvents()
                 emit event(QStringLiteral("remoteSearchResults"),
                     QJsonObject { { "searchId", query }, { "torrents", torrents } });
             });
+    }
+    if (app_->databaseSync()) {
+        connect(app_->databaseSync(), &service::DatabaseSyncService::syncStarted, this,
+            [this](const QJsonObject& info) { emit event(QStringLiteral("databaseSyncStarted"), info); });
+        connect(app_->databaseSync(), &service::DatabaseSyncService::syncProgress, this,
+            [this](const QJsonObject& info) { emit event(QStringLiteral("databaseSyncProgress"), info); });
+        connect(app_->databaseSync(), &service::DatabaseSyncService::syncFinished, this,
+            [this](bool, const QJsonObject& summary) { emit event(QStringLiteral("databaseSyncFinished"), summary); });
     }
 }
 
@@ -596,6 +605,83 @@ void ApiRouter::registerMethods()
         result["alreadyExists"] = inserted.alreadyExists;
         result["imported"] = !inserted.alreadyExists;
         respond(Result::success(result));
+    });
+
+    // -----------------------------------------------------------------------
+    // Whole-database replication
+    // -----------------------------------------------------------------------
+    add("database.export", [this](const QJsonObject& params, const ResultCallback& respond) {
+        service::DatabaseSyncService* sync = app_->databaseSync();
+        if (!sync) {
+            respond(Result::failure("Database sync is not available"));
+            return;
+        }
+        const QString path = params.contains("path") ? params["path"].toString() : params["file"].toString();
+        QString error;
+        if (!sync->exportToFile(path, &error)) {
+            respond(Result::failure(error));
+            return;
+        }
+        // The export runs in the background; progress arrives as
+        // databaseSyncProgress events and the summary as databaseSyncFinished.
+        respond(Result::success(sync->statusJson()));
+    });
+
+    add("database.import", [this](const QJsonObject& params, const ResultCallback& respond) {
+        service::DatabaseSyncService* sync = app_->databaseSync();
+        if (!sync) {
+            respond(Result::failure("Database sync is not available"));
+            return;
+        }
+        const QString path = params.contains("path") ? params["path"].toString() : params["file"].toString();
+        service::DatabaseSyncService::ImportOptions options;
+        options.applyFilters = params["applyFilters"].toBool(true);
+        options.resume = params["resume"].toBool(true);
+        options.removeWhenDone = params["removeWhenDone"].toBool(false);
+
+        QString error;
+        if (!sync->importFromFile(path, options, &error)) {
+            respond(Result::failure(error));
+            return;
+        }
+        respond(Result::success(sync->statusJson()));
+    });
+
+    add("database.pull", [this](const QJsonObject& params, const ResultCallback& respond) {
+        service::DatabaseSyncService* sync = app_->databaseSync();
+        if (!sync) {
+            respond(Result::failure("Database sync is not available"));
+            return;
+        }
+        const QString peerId = params.contains("peer") ? params["peer"].toString() : params["peerId"].toString();
+        service::DatabaseSyncService::ImportOptions options;
+        options.applyFilters = params["applyFilters"].toBool(true);
+
+        QString error;
+        if (!sync->requestFromPeer(peerId, options, &error)) {
+            respond(Result::failure(error));
+            return;
+        }
+        respond(Result::success(sync->statusJson()));
+    });
+
+    add("database.status", [this](const QJsonObject& /*params*/, const ResultCallback& respond) {
+        service::DatabaseSyncService* sync = app_->databaseSync();
+        if (!sync) {
+            respond(Result::failure("Database sync is not available"));
+            return;
+        }
+        respond(Result::success(sync->statusJson()));
+    });
+
+    add("database.cancel", [this](const QJsonObject& /*params*/, const ResultCallback& respond) {
+        service::DatabaseSyncService* sync = app_->databaseSync();
+        if (!sync) {
+            respond(Result::failure("Database sync is not available"));
+            return;
+        }
+        sync->cancel();
+        respond(Result::success(sync->statusJson()));
     });
 
     // -----------------------------------------------------------------------

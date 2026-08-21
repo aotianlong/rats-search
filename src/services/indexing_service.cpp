@@ -5,6 +5,8 @@
 #include "services/filter_policy.h"
 
 #include <QDebug>
+#include <QSet>
+#include <QStringList>
 
 namespace rats::service {
 
@@ -76,6 +78,82 @@ IndexingService::Result IndexingService::insert(domain::Torrent torrent)
             << "size:" << (torrent.size / (1024 * 1024)) << "MB files:" << torrent.files;
 
     emit torrentIndexed(torrent);
+    return result;
+}
+
+IndexingService::BatchResult IndexingService::insertBatch(
+    QVector<domain::Torrent> torrents, const BatchOptions& options)
+{
+    BatchResult result;
+    if (torrents.isEmpty())
+        return result;
+
+    // 1. Validate and de-duplicate inside the batch itself. A dump can carry the
+    //    same hash twice (two exports concatenated); letting both through would
+    //    insert one row and then treat the second one as new as well.
+    QVector<domain::Torrent> candidates;
+    candidates.reserve(torrents.size());
+    QSet<QString> seen;
+    for (const domain::Torrent& t : torrents) {
+        if (!t.isValid() || t.name.isEmpty()) {
+            ++result.invalid;
+            continue;
+        }
+        if (seen.contains(t.hash))
+            continue;
+        seen.insert(t.hash);
+        candidates.append(t);
+    }
+    if (candidates.isEmpty())
+        return result;
+
+    // 2. Dedupe against the index with one lookup for the whole batch instead of
+    //    a get() per torrent. Like insert(), this happens BEFORE classification
+    //    and filtering: an already-stored torrent keeps its row and merges, and
+    //    is never re-classified or re-judged by a filter it predates.
+    QStringList hashes;
+    hashes.reserve(candidates.size());
+    for (const domain::Torrent& t : candidates)
+        hashes << t.hash;
+    const QHash<QString, domain::Torrent> existing = repository_->getMany(hashes);
+
+    QVector<domain::Torrent> fresh;
+    fresh.reserve(candidates.size());
+
+    for (domain::Torrent& incoming : candidates) {
+        auto it = existing.constFind(incoming.hash);
+        if (it == existing.constEnd()) {
+            if (incoming.contentType == domain::ContentType::Unknown)
+                domain::ContentClassifier::classify(incoming);
+            if (options.applyFilters && filter_ && !filter_->accepts(incoming)) {
+                ++result.rejected;
+                continue;
+            }
+            fresh.append(incoming);
+            continue;
+        }
+
+        ++result.merged;
+        if (!options.mergeExisting)
+            continue;
+
+        // Same merge rules as insert(): heal a metadata-only row with the file
+        // list the incoming copy carries, and keep the higher vote counts.
+        domain::Torrent stored = *it;
+        if (stored.files == 0 && !incoming.fileList.isEmpty())
+            repository_->updateFiles(stored.hash, incoming.fileList);
+
+        if (incoming.good > stored.good || incoming.bad > stored.bad) {
+            stored.good = qMax(stored.good, incoming.good);
+            stored.bad = qMax(stored.bad, incoming.bad);
+            repository_->update(stored);
+        }
+    }
+
+    // 3. Everything genuinely new goes in as one multi-row INSERT.
+    if (!fresh.isEmpty())
+        result.inserted = repository_->addMany(fresh);
+
     return result;
 }
 

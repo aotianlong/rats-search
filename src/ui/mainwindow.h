@@ -4,6 +4,7 @@
 #include <QCheckBox>
 #include <QComboBox>
 #include <QHash>
+#include <QJsonObject>
 #include <QLabel>
 #include <QMainWindow>
 #include <QSplitter>
@@ -85,6 +86,9 @@ private slots:
     // Torrent management slots
     void addTorrentFile(); // Add .torrent file to search index
     void createTorrent(); // Create torrent from file/directory and seed
+    void exportDatabase(); // Write the whole index to a portable .ratsdb dump
+    void importDatabase(); // Merge somebody else's .ratsdb dump into the index
+    void pullDatabaseFromPeer(); // Ask a connected peer for its whole index
 
     // Settings slots - applied immediately
     void onDarkModeChanged(bool enabled);
@@ -128,6 +132,8 @@ private:
     // which would hide the peer/DHT/torrent counters for the whole timeout.
     // timeoutMs <= 0 keeps the text until the next message.
     void showStatusMessage(const QString& message, int timeoutMs = 0);
+    // One status-bar line for a database export/import/transfer progress payload.
+    QString databaseSyncStatusText(const QJsonObject& info) const;
     void clearStatusMessage();
     // Re-elide statusMessageText_ to the label's current width.
     void updateStatusMessageElide();

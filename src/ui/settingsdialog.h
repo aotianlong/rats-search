@@ -97,6 +97,7 @@ private:
     QSpinBox* p2pConnectionsSpin_;
     QCheckBox* p2pReplicationCheck_;
     QCheckBox* p2pReplicationServerCheck_;
+    QCheckBox* databaseSharingCheck_;
 
     // Indexer settings
     QCheckBox* indexerCheck_;

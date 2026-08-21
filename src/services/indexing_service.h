@@ -4,6 +4,7 @@
 #include "domain/torrent.h"
 
 #include <QObject>
+#include <QVector>
 
 namespace rats::data {
 class TorrentRepository;
@@ -28,12 +29,39 @@ public:
         QString error;
     };
 
+    // Outcome of one insertBatch() call.
+    struct BatchResult {
+        int inserted = 0; // genuinely new rows written
+        int merged = 0; // already present; votes/file list may have been merged
+        int rejected = 0; // refused by the filter policy
+        int invalid = 0; // no valid hash or no name
+    };
+
+    struct BatchOptions {
+        // Run the local filter policy over every incoming torrent, exactly as a
+        // crawled one. Turning this off imports a foreign index verbatim.
+        bool applyFilters = true;
+        // Merge votes / backfill file lists on torrents that already exist.
+        bool mergeExisting = true;
+    };
+
     IndexingService(data::TorrentRepository* repository, FilterPolicy* filter, QObject* parent = nullptr);
 
     // Insert `torrent`, running the content classifier first when its content
     // type is unknown. Returns the stored torrent (or the pre-existing one) on
     // success.
     Result insert(domain::Torrent torrent);
+
+    // Bulk insert for mass sources (database-dump import), same flow as insert()
+    // but with the per-row round trips collapsed: one existence query and one
+    // multi-row INSERT per batch. `torrents` should be at most a few hundred
+    // entries — Manticore caps an IN() lookup at max_matches rows.
+    //
+    // It deliberately does NOT emit torrentIndexed: that signal starts a tracker
+    // scrape per torrent, which is right for a trickle of crawled torrents and
+    // catastrophic for a million imported ones. Listeners that care about mass
+    // imports watch the repository's statisticsChanged instead.
+    BatchResult insertBatch(QVector<domain::Torrent> torrents, const BatchOptions& options = {});
 
     // Whether a torrent passes the current filter policy (used by the
     // maintenance sweep that re-applies filters to the existing index).

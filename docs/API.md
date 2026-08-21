@@ -118,6 +118,11 @@ See [WebSocket Events](#websocket-events) for details.
 | `torrent.cleanup` | Re-apply the filter policy to the index and drop torrents that no longer pass |
 | `torrent.create` | Create a `.torrent` file (optionally start seeding) |
 | `torrent.import` | Parse a `.torrent` file and index it |
+| `database.export` | Write the whole index to a portable `.ratsdb` dump |
+| `database.import` | Merge a `.ratsdb` dump into the index |
+| `database.pull` | Ask a connected peer for its whole index |
+| `database.status` | Current state of the running database sync |
+| `database.cancel` | Stop the running database sync |
 | `download.add` | Start downloading (hash or magnet) |
 | `download.addFile` | Start downloading from a `.torrent` file |
 | `download.pause` | Pause a download |
@@ -393,6 +398,119 @@ Parses the file and inserts it through the single `IndexingService` path (conten
     "imported": true
 }
 ```
+
+---
+
+### Database Replication
+
+Whole-index replication: a dump you can hand to another user (any transport —
+file share, USB stick, torrent) or move directly between two peers. Importing
+**merges**: torrents you already have keep their local row and only gain what the
+incoming copy adds (a file list for a metadata-only row, higher vote counts), and
+new ones go in through the same `IndexingService` path a crawled torrent does.
+
+Only one database operation runs at a time. All three starting methods return
+immediately with the sync status; progress arrives as `databaseSyncProgress`
+WebSocket events and the outcome as `databaseSyncFinished`.
+
+#### `database.export` - Write the index to a dump file
+
+```
+GET http://localhost:8095/api/database.export?path=C:/backup/index.ratsdb
+```
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `path` (or `file`) | string | yes | | Destination `.ratsdb` file |
+
+**Response** - the sync status object (see `database.status`).
+
+---
+
+#### `database.import` - Merge a dump into the index
+
+```
+GET http://localhost:8095/api/database.import?path=C:/from-a-friend.ratsdb
+```
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `path` (or `file`) | string | yes | | `.ratsdb` file to merge |
+| `applyFilters` | bool | no | `true` | Run the local filter policy over the incoming torrents |
+| `resume` | bool | no | `true` | Continue an interrupted import of the same file |
+| `removeWhenDone` | bool | no | `false` | Delete the dump once it has been merged |
+
+A dump that was cut short (interrupted transfer, killed exporter) is still
+importable — every complete frame in it is merged and the result is reported as
+successful with a truncation warning.
+
+---
+
+#### `database.pull` - Ask a peer for its whole index
+
+```
+GET http://localhost:8095/api/database.pull?peer=ab12cd34…
+```
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `peer` (or `peerId`) | string | yes | | Peer id from `peers.list` |
+| `applyFilters` | bool | no | `true` | Filter policy for the merge that follows |
+
+The peer answers over P2P (`databaseRequest` / `databaseRequest_response`), then
+exports its index and sends the dump over the librats file transfer; it arrives
+in `<dataDir>/dbsync/`, is merged, and is deleted. The peer only agrees when it
+has the `databaseSharing` config key enabled — it is **off by default**, so a
+refusal (`"reason": "sharing disabled"`) is the normal answer from a peer that
+has not opted in. In the other direction, a file offer from a peer we did not ask
+is rejected unopened.
+
+---
+
+#### `database.status` - State of the running sync
+
+```
+GET http://localhost:8095/api/database.status
+```
+
+**Response:**
+
+```json
+{
+    "success": true,
+    "data": {
+        "operation": "import",
+        "running": true,
+        "stage": "importing",
+        "path": "C:/from-a-friend.ratsdb",
+        "peer": "",
+        "processed": 12000,
+        "total": 45000,
+        "inserted": 8400,
+        "merged": 3600,
+        "rejected": 0,
+        "bytes": 4194304,
+        "totalBytes": 16777216
+    }
+}
+```
+
+`operation` is one of `idle`, `export`, `import`, `peerPull`, `peerServe`;
+`stage` is `exporting`, `waiting`, `preparing`, `transferring`, `importing`,
+`cancelling`, `done` or `failed`. `processed`/`total` count torrents,
+`bytes`/`totalBytes` count bytes of the dump or transfer.
+
+---
+
+#### `database.cancel` - Stop the running sync
+
+```
+GET http://localhost:8095/api/database.cancel
+```
+
+An export removes its partial file. An import keeps everything it already merged
+and saves a resume point, so re-running `database.import` on the same file
+continues where it stopped.
 
 ---
 
@@ -679,6 +797,9 @@ Push events are broadcast to all connected WebSocket clients as `{ "event": name
 | `remoteSearchResults` | A peer answered a P2P search | `{ "searchId": "…", "torrents": [ …torrent objects… ] }` |
 | `torrentRemoveProgress` | Progress of a bulk `torrent.remove` | `{ "processed": 100, "removed": 98, "total": 500 }` |
 | `torrentCleanupProgress` | Progress of a `torrent.cleanup` sweep | `{ "scanned": 5000, "matched": 120, "total": 12045 }` |
+| `databaseSyncStarted` | A database export/import/peer transfer began | The status object from `database.status` |
+| `databaseSyncProgress` | The running database sync advanced | The status object from `database.status` |
+| `databaseSyncFinished` | The database sync ended | The status object plus `"success": true` and, on failure, `"error"` |
 
 ---
 
