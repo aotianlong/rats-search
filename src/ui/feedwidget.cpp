@@ -94,7 +94,7 @@ void FeedWidget::updateEmptyState()
     const bool isEmpty = torrents_.isEmpty();
     emptyLabel_->setVisible(isEmpty);
     tableView_->setVisible(!isEmpty);
-    statusLabel_->setText(isEmpty ? tr("No items") : tr("%1 items").arg(torrents_.size()));
+    statusLabel_->setText(isEmpty ? tr("No items") : tr("%n item(s)", nullptr, static_cast<int>(torrents_.size())));
 }
 
 void FeedWidget::onScrollValueChanged(int value)

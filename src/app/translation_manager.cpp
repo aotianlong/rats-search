@@ -24,9 +24,9 @@ void TranslationManager::registerLanguages()
 {
     // English is built into the sources; the rest must have a .qm in
     // translations/.
-    languages_ = { { "en", "English", "🇬🇧" }, { "ru", "Русский", "🇷🇺" }, { "de", "Deutsch", "🇩🇪" },
-        { "es", "Español", "🇪🇸" }, { "fr", "Français", "🇫🇷" }, { "ja", "日本語", "🇯🇵" },
-        { "zh", "中文", "🇨🇳" }, { "ko", "한국어", "🇰🇷" } };
+    languages_
+        = { { "en", "English", "🇬🇧" }, { "ru", "Русский", "🇷🇺" }, { "de", "Deutsch", "🇩🇪" }, { "es", "Español", "🇪🇸" },
+              { "fr", "Français", "🇫🇷" }, { "ja", "日本語", "🇯🇵" }, { "zh", "中文", "🇨🇳" }, { "ko", "한국어", "🇰🇷" } };
 }
 
 void TranslationManager::initialize(QCoreApplication* app, const QString& translationsPath)

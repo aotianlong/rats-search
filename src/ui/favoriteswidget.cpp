@@ -79,7 +79,7 @@ void FavoritesWidget::refresh()
     const bool isEmpty = torrents.isEmpty();
     emptyLabel_->setVisible(isEmpty);
     tableView_->setVisible(!isEmpty);
-    statusLabel_->setText(isEmpty ? QString() : tr("%1 favorites").arg(torrents.size()));
+    statusLabel_->setText(isEmpty ? QString() : tr("%n favorite(s)", nullptr, static_cast<int>(torrents.size())));
     removeButton_->setEnabled(false);
 }
 

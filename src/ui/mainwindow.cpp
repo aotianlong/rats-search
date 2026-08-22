@@ -719,9 +719,10 @@ void MainWindow::connectServiceSignals()
                 const QString operation = summary["operation"].toString();
                 const qint64 processed = summary["processed"].toVariant().toLongLong();
                 if (operation == QLatin1String("export")) {
-                    showStatusMessage(tr("Exported %1 torrents.").arg(processed), 8000);
+                    showStatusMessage(tr("Exported %n torrent(s).", nullptr, static_cast<int>(processed)), 8000);
                     QMessageBox::information(this, tr("Export Database"),
-                        tr("Exported %1 torrents to:\n%2").arg(processed).arg(summary["path"].toString()));
+                        tr("Exported %n torrent(s) to:\n%1", nullptr, static_cast<int>(processed))
+                            .arg(summary["path"].toString()));
                     return;
                 }
                 if (operation == QLatin1String("peerServe")) {
@@ -730,7 +731,10 @@ void MainWindow::connectServiceSignals()
                 }
                 const qint64 inserted = summary["inserted"].toVariant().toLongLong();
                 const qint64 merged = summary["merged"].toVariant().toLongLong();
-                showStatusMessage(tr("Imported %1 new torrents (%2 already known).").arg(inserted).arg(merged), 8000);
+                showStatusMessage(
+                    tr("Imported %n new torrent(s) (%1 already known).", nullptr, static_cast<int>(inserted))
+                        .arg(merged),
+                    8000);
                 QMessageBox::information(this, tr("Import Database"),
                     tr("Merge finished.\n\n%1 new torrents added\n%2 already in your index").arg(inserted).arg(merged));
             });
@@ -848,7 +852,7 @@ void MainWindow::performSearch(const QString& query)
     if (app_->search())
         hits = app_->search()->searchTorrents(req);
     searchResultModel->setResults(hits);
-    showStatusMessage(tr("✅ Found %1 torrents").arg(hits.size()), 3000);
+    showStatusMessage(tr("✅ Found %n torrent(s)", nullptr, static_cast<int>(hits.size())), 3000);
 
     // Local file search — merged in as file-match results.
     if (app_->search()) {
@@ -1004,7 +1008,7 @@ void MainWindow::dropEvent(QDropEvent* event)
             });
     }
 
-    showStatusMessage(tr("Processing %1 torrent file(s)...").arg(torrentFiles.size()), 3000);
+    showStatusMessage(tr("Processing %n torrent file(s)...", nullptr, static_cast<int>(torrentFiles.size())), 3000);
 }
 
 // ============================================================================
@@ -1416,7 +1420,7 @@ void MainWindow::updateNetworkStatus()
     if (transport && transport->isRunning()) {
         size_t dhtNodes = transport->dhtNodeCount();
         if (transport->isDhtRunning())
-            dhtNodeCountLabel->setText(tr("🌐 DHT: %1 nodes").arg(dhtNodes));
+            dhtNodeCountLabel->setText(tr("🌐 DHT: %n node(s)", nullptr, static_cast<int>(dhtNodes)));
         else
             dhtNodeCountLabel->setText(tr("🌐 DHT: Offline"));
     } else if (p2pState_ != P2PState::NotStarted) {
@@ -1821,7 +1825,7 @@ QString MainWindow::databaseSyncStatusText(const QJsonObject& info) const
     const QString what = stage == QLatin1String("exporting") ? tr("Exporting database") : tr("Importing database");
     if (total > 0)
         return tr("%1: %2 / %3 (%4%)").arg(what).arg(processed).arg(total).arg((processed * 100) / total);
-    return tr("%1: %2 torrents").arg(what).arg(processed);
+    return tr("%1: %n torrent(s)", nullptr, static_cast<int>(processed)).arg(what);
 }
 
 void MainWindow::exportDatabase()
@@ -1918,7 +1922,9 @@ void MainWindow::pullDatabaseFromPeer()
             const QString id = peer["peerId"].toString();
             const qint64 torrents = peer["torrents"].toVariant().toLongLong();
             ids << id;
-            labels << tr("%1… — %2 torrents (%3)").arg(id.left(12)).arg(torrents).arg(peer["clientVersion"].toString());
+            labels << tr("%1… — %n torrent(s) (%2)", nullptr, static_cast<int>(torrents))
+                          .arg(id.left(12))
+                          .arg(peer["clientVersion"].toString());
         }
 
         bool accepted = false;

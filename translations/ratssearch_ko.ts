@@ -23,16 +23,16 @@
         <source>Loading...</source>
         <translation>불러오는 중...</translation>
     </message>
-    <message>
+    <message numerus="yes">
         <location filename="../src/ui/activitywidget.cpp" line="155"/>
         <location filename="../src/ui/activitywidget.cpp" line="237"/>
-        <source>%1 torrents</source>
-        <translation>토렌트 %1개</translation>
+        <source>%n torrent(s)</source>
+        <translation><numerusform>토렌트 %n개</numerusform></translation>
     </message>
-    <message>
+    <message numerus="yes">
         <location filename="../src/ui/activitywidget.cpp" line="244"/>
-        <source>(and %1 more)</source>
-        <translation>(외 %1개)</translation>
+        <source>(and %n more)</source>
+        <translation><numerusform>(외 %n개)</numerusform></translation>
     </message>
     <message>
         <location filename="../src/ui/activitywidget.cpp" line="308"/>
@@ -255,12 +255,12 @@ Start downloading torrents from the search results!</source>
         <translation>진행 중인 다운로드가 없습니다.
 검색 결과에서 토렌트 다운로드를 시작하세요!</translation>
     </message>
-    <message>
+    <message numerus="yes">
         <location filename="../src/ui/downloadswidget.cpp" line="314"/>
         <location filename="../src/ui/downloadswidget.cpp" line="339"/>
         <location filename="../src/ui/downloadswidget.cpp" line="356"/>
-        <source>%1 download(s)</source>
-        <translation>다운로드 %1개</translation>
+        <source>%n download(s)</source>
+        <translation><numerusform>다운로드 %n개</numerusform></translation>
     </message>
     <message>
         <location filename="../src/ui/downloadswidget.cpp" line="447"/>
@@ -291,10 +291,10 @@ or they will be added automatically when you create or import a torrent.</source
 상세 패널에서 토렌트를 즐겨찾기에 추가할 수 있으며,
 토렌트를 만들거나 가져오면 자동으로 추가됩니다.</translation>
     </message>
-    <message>
+    <message numerus="yes">
         <location filename="../src/ui/favoriteswidget.cpp" line="82"/>
-        <source>%1 favorites</source>
-        <translation>즐겨찾기 %1개</translation>
+        <source>%n favorite(s)</source>
+        <translation><numerusform>즐겨찾기 %n개</numerusform></translation>
     </message>
     <message>
         <location filename="../src/ui/favoriteswidget.cpp" line="100"/>
@@ -324,10 +324,10 @@ or they will be added automatically when you create or import a torrent.</source
         <source>No items</source>
         <translation>항목 없음</translation>
     </message>
-    <message>
+    <message numerus="yes">
         <location filename="../src/ui/feedwidget.cpp" line="97"/>
-        <source>%1 items</source>
-        <translation>항목 %1개</translation>
+        <source>%n item(s)</source>
+        <translation><numerusform>항목 %n개</numerusform></translation>
     </message>
 </context>
 <context>
@@ -579,7 +579,7 @@ or they will be added automatically when you create or import a torrent.</source
     </message>
     <message>
         <location filename="../src/ui/mainwindow.cpp" line="406"/>
-        <location filename="../src/ui/mainwindow.cpp" line="1363"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1367"/>
         <source>👥 Peers: %1</source>
         <translation>👥 피어: %1</translation>
     </message>
@@ -590,7 +590,7 @@ or they will be added automatically when you create or import a torrent.</source
     </message>
     <message>
         <location filename="../src/ui/mainwindow.cpp" line="408"/>
-        <location filename="../src/ui/mainwindow.cpp" line="902"/>
+        <location filename="../src/ui/mainwindow.cpp" line="906"/>
         <source>📦 Torrents: %1</source>
         <translation>📦 토렌트: %1</translation>
     </message>
@@ -601,8 +601,8 @@ or they will be added automatically when you create or import a torrent.</source
     </message>
     <message>
         <location filename="../src/ui/mainwindow.cpp" line="695"/>
-        <location filename="../src/ui/mainwindow.cpp" line="1305"/>
-        <location filename="../src/ui/mainwindow.cpp" line="1335"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1309"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1339"/>
         <source>Export Torrent</source>
         <translation>토렌트 내보내기</translation>
     </message>
@@ -634,45 +634,45 @@ or they will be added automatically when you create or import a torrent.</source
 
 %1</translation>
     </message>
-    <message>
+    <message numerus="yes">
         <location filename="../src/ui/mainwindow.cpp" line="722"/>
-        <source>Exported %1 torrents.</source>
-        <translation>토렌트 %1개를 내보냈습니다.</translation>
+        <source>Exported %n torrent(s).</source>
+        <translation><numerusform>토렌트 %n개를 내보냈습니다.</numerusform></translation>
     </message>
     <message>
         <location filename="../src/ui/mainwindow.cpp" line="723"/>
-        <location filename="../src/ui/mainwindow.cpp" line="1837"/>
-        <location filename="../src/ui/mainwindow.cpp" line="1844"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1841"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1848"/>
         <source>Export Database</source>
         <translation>데이터베이스 내보내기</translation>
     </message>
-    <message>
+    <message numerus="yes">
         <location filename="../src/ui/mainwindow.cpp" line="724"/>
-        <source>Exported %1 torrents to:
-%2</source>
-        <translation>토렌트 %1개를 다음 위치로 내보냈습니다:
-%2</translation>
+        <source>Exported %n torrent(s) to:
+%1</source>
+        <translation><numerusform>토렌트 %n개를 다음 위치로 내보냈습니다:
+%1</numerusform></translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="728"/>
+        <location filename="../src/ui/mainwindow.cpp" line="729"/>
         <source>Sent the database to a peer.</source>
         <translation>데이터베이스를 피어에 보냈습니다.</translation>
     </message>
-    <message>
-        <location filename="../src/ui/mainwindow.cpp" line="733"/>
-        <source>Imported %1 new torrents (%2 already known).</source>
-        <translation>새 토렌트 %1개를 가져왔습니다(%2개는 이미 있음).</translation>
+    <message numerus="yes">
+        <location filename="../src/ui/mainwindow.cpp" line="735"/>
+        <source>Imported %n new torrent(s) (%1 already known).</source>
+        <translation><numerusform>새 토렌트 %n개를 가져왔습니다(%1개는 이미 있음).</numerusform></translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="734"/>
-        <location filename="../src/ui/mainwindow.cpp" line="1856"/>
-        <location filename="../src/ui/mainwindow.cpp" line="1867"/>
-        <location filename="../src/ui/mainwindow.cpp" line="1885"/>
+        <location filename="../src/ui/mainwindow.cpp" line="738"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1860"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1871"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1889"/>
         <source>Import Database</source>
         <translation>데이터베이스 가져오기</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="735"/>
+        <location filename="../src/ui/mainwindow.cpp" line="739"/>
         <source>Merge finished.
 
 %1 new torrents added
@@ -683,12 +683,12 @@ or they will be added automatically when you create or import a torrent.</source
 %2개는 이미 색인에 있음</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="749"/>
+        <location filename="../src/ui/mainwindow.cpp" line="753"/>
         <source>Data Migration</source>
         <translation>데이터 마이그레이션</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="750"/>
+        <location filename="../src/ui/mainwindow.cpp" line="754"/>
         <source>A background data migration failed; it will retry on the next start.
 
 %1: %2</source>
@@ -697,269 +697,269 @@ or they will be added automatically when you create or import a torrent.</source
 %1: %2</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="755"/>
+        <location filename="../src/ui/mainwindow.cpp" line="759"/>
         <source>Data migration complete</source>
         <translation>데이터 마이그레이션 완료</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="820"/>
+        <location filename="../src/ui/mainwindow.cpp" line="824"/>
         <source>🔍 Searching...</source>
         <translation>🔍 검색 중...</translation>
     </message>
-    <message>
-        <location filename="../src/ui/mainwindow.cpp" line="851"/>
-        <source>✅ Found %1 torrents</source>
-        <translation>✅ 토렌트 %1개를 찾았습니다</translation>
+    <message numerus="yes">
+        <location filename="../src/ui/mainwindow.cpp" line="855"/>
+        <source>✅ Found %n torrent(s)</source>
+        <translation><numerusform>✅ 토렌트 %n개를 찾았습니다</numerusform></translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="859"/>
+        <location filename="../src/ui/mainwindow.cpp" line="863"/>
         <source>✅ Found %1 total results (incl. file matches)</source>
         <translation>✅ 총 %1개의 결과를 찾았습니다(파일 일치 포함)</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="891"/>
+        <location filename="../src/ui/mainwindow.cpp" line="895"/>
         <source>✅ Found torrent via DHT</source>
         <translation>✅ DHT를 통해 토렌트를 찾았습니다</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="900"/>
+        <location filename="../src/ui/mainwindow.cpp" line="904"/>
         <source>📦 Torrents: %1 + %2</source>
         <translation>📦 토렌트: %1 + %2</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="925"/>
-        <location filename="../src/ui/mainwindow.cpp" line="2043"/>
+        <location filename="../src/ui/mainwindow.cpp" line="929"/>
+        <location filename="../src/ui/mainwindow.cpp" line="2049"/>
         <source>Rats Search</source>
         <translation>Rats Search</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="925"/>
+        <location filename="../src/ui/mainwindow.cpp" line="929"/>
         <source>Application is still running in the system tray.</source>
         <translation>애플리케이션이 시스템 트레이에서 계속 실행 중입니다.</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="935"/>
+        <location filename="../src/ui/mainwindow.cpp" line="939"/>
         <source>Confirm Exit</source>
         <translation>종료 확인</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="935"/>
+        <location filename="../src/ui/mainwindow.cpp" line="939"/>
         <source>Are you sure you want to exit Rats Search?</source>
         <translation>Rats Search를 종료하시겠습니까?</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="996"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1000"/>
         <source>Already indexed: %1</source>
         <translation>이미 색인됨: %1</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="996"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1000"/>
         <source>Added: %1</source>
         <translation>추가됨: %1</translation>
     </message>
-    <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1007"/>
-        <source>Processing %1 torrent file(s)...</source>
-        <translation>토렌트 파일 %1개를 처리하는 중...</translation>
+    <message numerus="yes">
+        <location filename="../src/ui/mainwindow.cpp" line="1011"/>
+        <source>Processing %n torrent file(s)...</source>
+        <translation><numerusform>토렌트 파일 %n개를 처리하는 중...</numerusform></translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1079"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1083"/>
         <source>🕘 Recent searches</source>
         <translation>🕘 최근 검색</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1088"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1092"/>
         <source>Clear search history</source>
         <translation>검색 기록 지우기</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1097"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1101"/>
         <source>🕘 Search history cleared</source>
         <translation>🕘 검색 기록을 지웠습니다</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1212"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1216"/>
         <source>📥 Download to default folder</source>
         <translation>📥 기본 폴더로 다운로드</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1217"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1221"/>
         <source>📥 Download to: %1</source>
         <translation>📥 다운로드 위치: %1</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1222"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1226"/>
         <source>📂 Choose download location...</source>
         <translation>📂 다운로드 위치 선택...</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1224"/>
-        <location filename="../src/ui/mainwindow.cpp" line="1669"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1228"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1673"/>
         <source>❌ Cancel</source>
         <translation>❌ 취소</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1236"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1240"/>
         <source>Select Download Location</source>
         <translation>다운로드 위치 선택</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1245"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1249"/>
         <source>⬇️ Download started</source>
         <translation>⬇️ 다운로드를 시작했습니다</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1249"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1253"/>
         <source>Download Failed</source>
         <translation>다운로드 실패</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1250"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1254"/>
         <source>Could not start the download. Check the info hash and try again.</source>
         <translation>다운로드를 시작할 수 없습니다. 인포 해시를 확인한 뒤 다시 시도하세요.</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1275"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1279"/>
         <source>★ Remove from Favorites</source>
         <translation>★ 즐겨찾기에서 제거</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1278"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1282"/>
         <source>Removed from favorites</source>
         <translation>즐겨찾기에서 제거했습니다</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1281"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1285"/>
         <source>⭐ Add to Favorites</source>
         <translation>⭐ 즐겨찾기에 추가</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1284"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1288"/>
         <source>Added to favorites: %1</source>
         <translation>즐겨찾기에 추가했습니다: %1</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1291"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1295"/>
         <source>💾 Export to .torrent file...</source>
         <translation>💾 .torrent 파일로 내보내기...</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1294"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1298"/>
         <source>Show Details</source>
         <translation>상세 정보 표시</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1305"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1309"/>
         <source>Export is not available in this build.</source>
         <translation>이 빌드에서는 내보내기를 사용할 수 없습니다.</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1326"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1330"/>
         <source>Export Torrent As</source>
         <translation>다른 이름으로 토렌트 내보내기</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1326"/>
-        <location filename="../src/ui/mainwindow.cpp" line="1624"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1330"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1628"/>
         <source>Torrent Files (*.torrent);;All Files (*)</source>
         <translation>토렌트 파일 (*.torrent);;모든 파일 (*)</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1335"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1339"/>
         <source>Failed to save torrent to:
 %1</source>
         <translation>토렌트를 다음 위치에 저장하지 못했습니다:
 %1</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1338"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1342"/>
         <source>Torrent exported to %1</source>
         <translation>토렌트를 %1(으)로 내보냈습니다</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1346"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1350"/>
         <source>Migrating data</source>
         <translation>데이터 마이그레이션 중</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1351"/>
-        <location filename="../src/ui/mainwindow.cpp" line="1823"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1355"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1827"/>
         <source>%1: %2 / %3 (%4%)</source>
         <translation>%1: %2 / %3 (%4%)</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1353"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1357"/>
         <source>%1…</source>
         <translation>%1…</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1387"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1391"/>
         <source>🕷️ Spider: %1</source>
         <translation>🕷️ 스파이더: %1</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1387"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1391"/>
         <source>Active</source>
         <translation>활성</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1387"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1391"/>
         <source>Stopped</source>
         <translation>중지됨</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1398"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1402"/>
         <source>P2P: Not Started</source>
         <translation>P2P: 시작되지 않음</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1402"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1406"/>
         <source>P2P: No Peers</source>
         <translation>P2P: 피어 없음</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1406"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1410"/>
         <source>P2P: Connected</source>
         <translation>P2P: 연결됨</translation>
     </message>
-    <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1419"/>
-        <source>🌐 DHT: %1 nodes</source>
-        <translation>🌐 DHT: 노드 %1개</translation>
+    <message numerus="yes">
+        <location filename="../src/ui/mainwindow.cpp" line="1423"/>
+        <source>🌐 DHT: %n node(s)</source>
+        <translation><numerusform>🌐 DHT: 노드 %n개</numerusform></translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1421"/>
-        <location filename="../src/ui/mainwindow.cpp" line="1423"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1425"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1427"/>
         <source>🌐 DHT: Offline</source>
         <translation>🌐 DHT: 오프라인</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1431"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1435"/>
         <source>📥 Indexed: %1</source>
         <translation>📥 색인됨: %1</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1456"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1460"/>
         <source>Restart Required</source>
         <translation>다시 시작 필요</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1457"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1461"/>
         <source>Some changes (network ports or data directory) will take effect after restarting the application.</source>
         <translation>일부 변경 사항(네트워크 포트 또는 데이터 디렉터리)은 애플리케이션을 다시 시작한 후에 적용됩니다.</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1468"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1472"/>
         <source>About Rats Search</source>
         <translation>Rats Search 정보</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1486"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1490"/>
         <source>BitTorrent P2P Search Engine</source>
         <translation>BitTorrent P2P 검색 엔진</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1498"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1502"/>
         <source>Built with Qt %1 and librats
 
 A powerful decentralized torrent search engine
@@ -970,37 +970,37 @@ DHT 크롤링과 전문 검색을 갖춘
 강력한 분산형 토렌트 검색 엔진입니다.</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1508"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1512"/>
         <source>Copyright © 2026</source>
         <translation>Copyright © 2026</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1514"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1518"/>
         <source>GitHub Repository</source>
         <translation>GitHub 저장소</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1522"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1526"/>
         <source>OK</source>
         <translation>확인</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1540"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1544"/>
         <source>Changelog - What's New</source>
         <translation>변경 내역 - 새로운 소식</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1554"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1558"/>
         <source>Changelog</source>
         <translation>변경 내역</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1566"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1570"/>
         <source>Recent changes and updates to Rats Search</source>
         <translation>Rats Search의 최근 변경 사항과 업데이트</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1595"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1599"/>
         <source># Changelog
 
 No changelog available.</source>
@@ -1009,149 +1009,149 @@ No changelog available.</source>
 사용할 수 있는 변경 내역이 없습니다.</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1603"/>
-        <location filename="../src/ui/mainwindow.cpp" line="2207"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1607"/>
+        <location filename="../src/ui/mainwindow.cpp" line="2213"/>
         <source>Close</source>
         <translation>닫기</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1622"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1626"/>
         <source>Add Torrent File</source>
         <translation>토렌트 파일 추가</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1630"/>
-        <location filename="../src/ui/mainwindow.cpp" line="1654"/>
-        <location filename="../src/ui/mainwindow.cpp" line="1746"/>
-        <location filename="../src/ui/mainwindow.cpp" line="1791"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1634"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1658"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1750"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1795"/>
         <source>Error</source>
         <translation>오류</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1630"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1634"/>
         <source>API not initialized</source>
         <translation>API가 초기화되지 않았습니다</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1641"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1645"/>
         <source>Torrent already in index: %1</source>
         <translation>토렌트가 이미 색인에 있습니다: %1</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1641"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1645"/>
         <source>Added to index: %1</source>
         <translation>색인에 추가했습니다: %1</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1649"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1653"/>
         <source>Torrent Added</source>
         <translation>토렌트 추가됨</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1649"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1653"/>
         <source>%1 has been added to the search index</source>
         <translation>%1이(가) 검색 색인에 추가되었습니다</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1654"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1658"/>
         <source>Failed to add torrent file:
 %1</source>
         <translation>토렌트 파일을 추가하지 못했습니다:
 %1</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1666"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1670"/>
         <source>📄 Create from File...</source>
         <translation>📄 파일에서 만들기...</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1667"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1671"/>
         <source>📁 Create from Folder...</source>
         <translation>📁 폴더에서 만들기...</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1677"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1681"/>
         <source>Select File to Create Torrent From</source>
         <translation>토렌트를 만들 파일 선택</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1678"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1682"/>
         <source>All Files (*)</source>
         <translation>모든 파일 (*)</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1680"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1684"/>
         <source>Select Folder to Create Torrent From</source>
         <translation>토렌트를 만들 폴더 선택</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1688"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1692"/>
         <source>Create Torrent</source>
         <translation>토렌트 만들기</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1696"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1700"/>
         <source>Source: %1</source>
         <translation>원본: %1</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1701"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1705"/>
         <source>Trackers (one per line, optional):</source>
         <translation>트래커(한 줄에 하나, 선택 사항):</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1710"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1714"/>
         <source>Comment (optional):</source>
         <translation>설명(선택 사항):</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1714"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1718"/>
         <source>Created with Rats Search</source>
         <translation>Rats Search로 만듦</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1717"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1721"/>
         <source>Start seeding immediately</source>
         <translation>즉시 시딩 시작</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1723"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1727"/>
         <source>Hashing pieces... %p%</source>
         <translation>조각 해싱 중... %p%</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1733"/>
-        <location filename="../src/ui/mainwindow.cpp" line="2170"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1737"/>
+        <location filename="../src/ui/mainwindow.cpp" line="2176"/>
         <source>Cancel</source>
         <translation>취소</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1734"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1738"/>
         <source>🔨 Create Torrent</source>
         <translation>🔨 토렌트 만들기</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1746"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1750"/>
         <source>Torrent creator not available</source>
         <translation>토렌트 생성 기능을 사용할 수 없습니다</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1754"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1758"/>
         <source>Creating torrent...</source>
         <translation>토렌트를 만드는 중...</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1783"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1787"/>
         <source>✅ Torrent created successfully!</source>
         <translation>✅ 토렌트를 만들었습니다!</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1785"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1789"/>
         <source>Torrent Created</source>
         <translation>토렌트 생성됨</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1785"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1789"/>
         <source>Torrent created and seeding.
 
 Hash: %1</source>
@@ -1160,53 +1160,53 @@ Hash: %1</source>
 해시: %1</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1788"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1792"/>
         <source>❌ Failed to create torrent</source>
         <translation>❌ 토렌트 만들기에 실패했습니다</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1791"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1795"/>
         <source>Failed to create torrent.</source>
         <translation>토렌트를 만들지 못했습니다.</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1812"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1816"/>
         <source>Transferring database: %1 / %2 (%3%)</source>
         <translation>데이터베이스 전송 중: %1 / %2 (%3%)</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1816"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1820"/>
         <source>Transferring database: %1</source>
         <translation>데이터베이스 전송 중: %1</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1819"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1823"/>
         <source>Waiting for the peer to prepare its database…</source>
         <translation>피어가 데이터베이스를 준비하기를 기다리는 중…</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1821"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1825"/>
         <source>Exporting database</source>
         <translation>데이터베이스 내보내는 중</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1821"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1825"/>
         <source>Importing database</source>
         <translation>데이터베이스 가져오는 중</translation>
     </message>
-    <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1824"/>
-        <source>%1: %2 torrents</source>
-        <translation>%1: 토렌트 %2개</translation>
+    <message numerus="yes">
+        <location filename="../src/ui/mainwindow.cpp" line="1828"/>
+        <source>%1: %n torrent(s)</source>
+        <translation><numerusform>%1: 토렌트 %n개</numerusform></translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1837"/>
-        <location filename="../src/ui/mainwindow.cpp" line="1858"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1841"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1862"/>
         <source>Rats Database (*.ratsdb);;All Files (*)</source>
         <translation>Rats 데이터베이스 (*.ratsdb);;모든 파일 (*)</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1844"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1848"/>
         <source>Could not start the export.
 
 %1</source>
@@ -1215,12 +1215,12 @@ Hash: %1</source>
 %1</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1868"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1872"/>
         <source>Merge this database into your index?</source>
         <translation>이 데이터베이스를 내 색인에 병합할까요?</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1870"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1874"/>
         <source>Torrents you already have are kept; only new ones are added.
 
 %1</source>
@@ -1229,12 +1229,12 @@ Hash: %1</source>
 %1</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1874"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1878"/>
         <source>Apply my content filters to the imported torrents</source>
         <translation>가져온 토렌트에 내 콘텐츠 필터 적용</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1885"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1889"/>
         <source>Could not start the import.
 
 %1</source>
@@ -1243,15 +1243,15 @@ Hash: %1</source>
 %1</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1899"/>
-        <location filename="../src/ui/mainwindow.cpp" line="1905"/>
-        <location filename="../src/ui/mainwindow.cpp" line="1926"/>
-        <location filename="../src/ui/mainwindow.cpp" line="1937"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1903"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1909"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1932"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1943"/>
         <source>Download Database</source>
         <translation>데이터베이스 다운로드</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1906"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1910"/>
         <source>None of the connected peers is sharing its database.
 
 Sharing is something each user enables for themselves, and older clients do not support it at all. Try again later, or import a database file instead.</source>
@@ -1259,18 +1259,18 @@ Sharing is something each user enables for themselves, and older clients do not 
 
 공유는 각 사용자가 직접 켜는 기능이며, 오래된 클라이언트는 아예 지원하지 않습니다. 나중에 다시 시도하거나 데이터베이스 파일을 가져오세요.</translation>
     </message>
-    <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1921"/>
-        <source>%1… — %2 torrents (%3)</source>
-        <translation>%1… — 토렌트 %2개 (%3)</translation>
+    <message numerus="yes">
+        <location filename="../src/ui/mainwindow.cpp" line="1925"/>
+        <source>%1… — %n torrent(s) (%2)</source>
+        <translation><numerusform>%1… — 토렌트 %n개 (%2)</numerusform></translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1926"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1932"/>
         <source>Ask which peer for its whole index?</source>
         <translation>어느 피어에 전체 색인을 요청할까요?</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1937"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1943"/>
         <source>Could not ask the peer.
 
 %1</source>
@@ -1279,57 +1279,57 @@ Sharing is something each user enables for themselves, and older clients do not 
 %1</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1956"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1962"/>
         <source>Rats Search - P2P Torrent Search Engine</source>
         <translation>Rats Search - P2P 토렌트 검색 엔진</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1961"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1967"/>
         <source>Show Window</source>
         <translation>창 표시</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1966"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1972"/>
         <source>Settings</source>
         <translation>설정</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1975"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1981"/>
         <source>Quit</source>
         <translation>종료</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="2043"/>
+        <location filename="../src/ui/mainwindow.cpp" line="2049"/>
         <source>Application minimized to tray. Click to restore.</source>
         <translation>애플리케이션이 트레이로 최소화되었습니다. 클릭하면 복원됩니다.</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="2088"/>
+        <location filename="../src/ui/mainwindow.cpp" line="2094"/>
         <source>Checking for updates...</source>
         <translation>업데이트 확인 중...</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="2095"/>
+        <location filename="../src/ui/mainwindow.cpp" line="2101"/>
         <source>No Updates Available</source>
         <translation>사용 가능한 업데이트 없음</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="2096"/>
+        <location filename="../src/ui/mainwindow.cpp" line="2102"/>
         <source>You are running the latest version of Rats Search (%1).</source>
         <translation>최신 버전의 Rats Search (%1)을(를) 사용 중입니다.</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="2112"/>
+        <location filename="../src/ui/mainwindow.cpp" line="2118"/>
         <source>Update Available</source>
         <translation>업데이트 있음</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="2120"/>
+        <location filename="../src/ui/mainwindow.cpp" line="2126"/>
         <source>New Version Available!</source>
         <translation>새 버전이 있습니다!</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="2124"/>
+        <location filename="../src/ui/mainwindow.cpp" line="2130"/>
         <source>A new version of Rats Search is available.
 
 Current version: %1
@@ -1340,72 +1340,72 @@ New version: %2</source>
 새 버전: %2</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="2131"/>
+        <location filename="../src/ui/mainwindow.cpp" line="2137"/>
         <source>What's new:</source>
         <translation>새로운 소식:</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="2144"/>
+        <location filename="../src/ui/mainwindow.cpp" line="2150"/>
         <source>Downloading... %p%</source>
         <translation>다운로드 중... %p%</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="2155"/>
+        <location filename="../src/ui/mainwindow.cpp" line="2161"/>
         <source>Remind Me Later</source>
         <translation>나중에 알림</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="2158"/>
+        <location filename="../src/ui/mainwindow.cpp" line="2164"/>
         <source>Download &amp;&amp; Install</source>
         <translation>다운로드 및 설치</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="2172"/>
+        <location filename="../src/ui/mainwindow.cpp" line="2178"/>
         <source>Starting download...</source>
         <translation>다운로드를 시작하는 중...</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="2179"/>
+        <location filename="../src/ui/mainwindow.cpp" line="2185"/>
         <source>Downloading update...</source>
         <translation>업데이트 다운로드 중...</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="2182"/>
+        <location filename="../src/ui/mainwindow.cpp" line="2188"/>
         <source>Extracting update...</source>
         <translation>업데이트 압축 해제 중...</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="2185"/>
+        <location filename="../src/ui/mainwindow.cpp" line="2191"/>
         <source>Ready to install!</source>
         <translation>설치할 준비가 되었습니다!</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="2188"/>
+        <location filename="../src/ui/mainwindow.cpp" line="2194"/>
         <source>Error occurred</source>
         <translation>오류가 발생했습니다</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="2204"/>
+        <location filename="../src/ui/mainwindow.cpp" line="2210"/>
         <source>Error: %1</source>
         <translation>오류: %1</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="2206"/>
+        <location filename="../src/ui/mainwindow.cpp" line="2212"/>
         <source>Retry</source>
         <translation>다시 시도</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="2215"/>
+        <location filename="../src/ui/mainwindow.cpp" line="2221"/>
         <source>Downloading update: %1%</source>
         <translation>업데이트 다운로드 중: %1%</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="2222"/>
+        <location filename="../src/ui/mainwindow.cpp" line="2228"/>
         <source>Install Update</source>
         <translation>업데이트 설치</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="2223"/>
+        <location filename="../src/ui/mainwindow.cpp" line="2229"/>
         <source>The update has been downloaded and is ready to install.
 
 The application will close and restart automatically.
@@ -1418,42 +1418,42 @@ Do you want to install the update now?</source>
 지금 업데이트를 설치하시겠습니까?</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="2251"/>
+        <location filename="../src/ui/mainwindow.cpp" line="2257"/>
         <source>Update error: %1</source>
         <translation>업데이트 오류: %1</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="2322"/>
+        <location filename="../src/ui/mainwindow.cpp" line="2328"/>
         <source>End User License Agreement</source>
         <translation>최종 사용자 라이선스 계약</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="2344"/>
+        <location filename="../src/ui/mainwindow.cpp" line="2350"/>
         <source>Rats Search - License Agreement</source>
         <translation>Rats Search - 라이선스 계약</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="2350"/>
+        <location filename="../src/ui/mainwindow.cpp" line="2356"/>
         <source>Please read and accept the following End User License Agreement before using this software.</source>
         <translation>이 소프트웨어를 사용하기 전에 아래 최종 사용자 라이선스 계약을 읽고 동의해 주세요.</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="2406"/>
+        <location filename="../src/ui/mainwindow.cpp" line="2412"/>
         <source>I have read and understood the End User License Agreement</source>
         <translation>최종 사용자 라이선스 계약을 읽고 이해했습니다</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="2409"/>
+        <location filename="../src/ui/mainwindow.cpp" line="2415"/>
         <source>⚠️ By clicking 'I Accept', you acknowledge that you have read, understood, and agree to be bound by all terms and conditions of this Agreement. You accept full responsibility for your use of this Software.</source>
         <translation>⚠️ '동의합니다'를 클릭하면 본 계약의 모든 조항을 읽고 이해했으며 이에 구속되는 데 동의하는 것으로 간주됩니다. 이 소프트웨어의 사용에 대한 모든 책임은 사용자에게 있습니다.</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="2419"/>
+        <location filename="../src/ui/mainwindow.cpp" line="2425"/>
         <source>Decline &amp;&amp; Exit</source>
         <translation>거부하고 종료</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="2424"/>
+        <location filename="../src/ui/mainwindow.cpp" line="2430"/>
         <source>I Accept</source>
         <translation>동의합니다</translation>
     </message>
@@ -1988,15 +1988,15 @@ Do you want to install the update now?</source>
         <source>Cleanup failed: %1</source>
         <translation>정리에 실패했습니다: %1</translation>
     </message>
-    <message>
+    <message numerus="yes">
         <location filename="../src/ui/settingsdialog.cpp" line="786"/>
-        <source>%1 of %2 torrents don't match the current filters.</source>
-        <translation>토렌트 %2개 중 %1개가 현재 필터와 일치하지 않습니다.</translation>
+        <source>%n of %1 torrent(s) don't match the current filters.</source>
+        <translation><numerusform>토렌트 %1개 중 %n개가 현재 필터와 일치하지 않습니다.</numerusform></translation>
     </message>
-    <message>
+    <message numerus="yes">
         <location filename="../src/ui/settingsdialog.cpp" line="787"/>
-        <source>Removed %1 torrents that didn't match the filters.</source>
-        <translation>필터와 일치하지 않는 토렌트 %1개를 제거했습니다.</translation>
+        <source>Removed %n torrent(s) that didn't match the filters.</source>
+        <translation><numerusform>필터와 일치하지 않는 토렌트 %n개를 제거했습니다.</numerusform></translation>
     </message>
     <message>
         <location filename="../src/ui/settingsdialog.cpp" line="803"/>
@@ -2076,10 +2076,10 @@ Do you want to install the update now?</source>
         <source>Loading...</source>
         <translation>불러오는 중...</translation>
     </message>
-    <message>
+    <message numerus="yes">
         <location filename="../src/ui/toptorrentswidget.cpp" line="106"/>
-        <source>%1 torrents</source>
-        <translation>토렌트 %1개</translation>
+        <source>%n torrent(s)</source>
+        <translation><numerusform>토렌트 %n개</numerusform></translation>
     </message>
 </context>
 <context>
@@ -2224,10 +2224,10 @@ Do you want to install the update now?</source>
         <source>Unknown</source>
         <translation>알 수 없음</translation>
     </message>
-    <message>
+    <message numerus="yes">
         <location filename="../src/ui/torrentdetailspanel.cpp" line="449"/>
-        <source>%1 files</source>
-        <translation>파일 %1개</translation>
+        <source>%n file(s)</source>
+        <translation><numerusform>파일 %n개</numerusform></translation>
     </message>
     <message>
         <location filename="../src/ui/torrentdetailspanel.cpp" line="528"/>
@@ -2250,10 +2250,10 @@ Do you want to install the update now?</source>
         <source>★ In Favorites (Remove)</source>
         <translation>★ 즐겨찾기에 있음(제거)</translation>
     </message>
-    <message>
+    <message numerus="yes">
         <location filename="../src/ui/torrentdetailspanel.cpp" line="680"/>
-        <source>%1 votes</source>
-        <translation>투표 %1회</translation>
+        <source>%n vote(s)</source>
+        <translation><numerusform>투표 %n회</numerusform></translation>
     </message>
     <message>
         <location filename="../src/ui/torrentdetailspanel.cpp" line="689"/>
@@ -2367,18 +2367,13 @@ Do you want to install the update now?</source>
         <source>No files</source>
         <translation>파일 없음</translation>
     </message>
-    <message>
-        <location filename="../src/ui/torrentfileswidget.cpp" line="88"/>
-        <source>file</source>
-        <translation>파일</translation>
+    <message numerus="yes">
+        <location filename="../src/ui/torrentfileswidget.cpp" line="87"/>
+        <source>%n file(s) • %1</source>
+        <translation><numerusform>파일 %n개 • %1</numerusform></translation>
     </message>
     <message>
-        <location filename="../src/ui/torrentfileswidget.cpp" line="88"/>
-        <source>files</source>
-        <translation>파일</translation>
-    </message>
-    <message>
-        <location filename="../src/ui/torrentfileswidget.cpp" line="134"/>
+        <location filename="../src/ui/torrentfileswidget.cpp" line="132"/>
         <source>Select a torrent to view files</source>
         <translation>파일을 보려면 토렌트를 선택하세요</translation>
     </message>

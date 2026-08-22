@@ -103,7 +103,7 @@ void TopTorrentsWidget::loadMore()
     loadedCount_ = torrents_.size();
 
     setTorrents(torrents_);
-    statusLabel_->setText(tr("%1 torrents").arg(torrents_.size()));
+    statusLabel_->setText(tr("%n torrent(s)", nullptr, static_cast<int>(torrents_.size())));
 }
 
 void TopTorrentsWidget::onCategoryChanged(int index)

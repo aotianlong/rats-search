@@ -270,8 +270,8 @@ void DownloadsWidget::setApplication(rats::app::Application* app)
     }
 
     if (app_ && app_->favorites()) {
-        connect(app_->favorites(), &rats::app::FavoritesStore::favoritesChanged, this,
-            &DownloadsWidget::refreshFavorites);
+        connect(
+            app_->favorites(), &rats::app::FavoritesStore::favoritesChanged, this, &DownloadsWidget::refreshFavorites);
     }
 }
 
@@ -311,7 +311,7 @@ void DownloadsWidget::loadDownloads()
     } else {
         emptyLabel_->hide();
         listContainer_->show();
-        statusLabel_->setText(tr("%1 download(s)").arg(downloadItems_.size()));
+        statusLabel_->setText(tr("%n download(s)", nullptr, static_cast<int>(downloadItems_.size())));
     }
 }
 
@@ -336,7 +336,7 @@ void DownloadsWidget::addDownloadItem(const QString& hash, const QString& name, 
 
     emptyLabel_->hide();
     listContainer_->show();
-    statusLabel_->setText(tr("%1 download(s)").arg(downloadItems_.size()));
+    statusLabel_->setText(tr("%n download(s)", nullptr, static_cast<int>(downloadItems_.size())));
 }
 
 void DownloadsWidget::removeDownloadItem(const QString& hash)
@@ -353,7 +353,7 @@ void DownloadsWidget::removeDownloadItem(const QString& hash)
         listContainer_->hide();
         statusLabel_->clear();
     } else {
-        statusLabel_->setText(tr("%1 download(s)").arg(downloadItems_.size()));
+        statusLabel_->setText(tr("%n download(s)", nullptr, static_cast<int>(downloadItems_.size())));
     }
 }
 

@@ -23,16 +23,16 @@
         <source>Loading...</source>
         <translation>加载中...</translation>
     </message>
-    <message>
+    <message numerus="yes">
         <location filename="../src/ui/activitywidget.cpp" line="155"/>
         <location filename="../src/ui/activitywidget.cpp" line="237"/>
-        <source>%1 torrents</source>
-        <translation>%1 个种子</translation>
+        <source>%n torrent(s)</source>
+        <translation><numerusform>%n 个种子</numerusform></translation>
     </message>
-    <message>
+    <message numerus="yes">
         <location filename="../src/ui/activitywidget.cpp" line="244"/>
-        <source>(and %1 more)</source>
-        <translation>(还有 %1 个)</translation>
+        <source>(and %n more)</source>
+        <translation><numerusform>(还有 %n 个)</numerusform></translation>
     </message>
     <message>
         <location filename="../src/ui/activitywidget.cpp" line="308"/>
@@ -255,12 +255,12 @@ Start downloading torrents from the search results!</source>
         <translation>没有正在进行的下载。
 从搜索结果中开始下载种子吧！</translation>
     </message>
-    <message>
+    <message numerus="yes">
         <location filename="../src/ui/downloadswidget.cpp" line="314"/>
         <location filename="../src/ui/downloadswidget.cpp" line="339"/>
         <location filename="../src/ui/downloadswidget.cpp" line="356"/>
-        <source>%1 download(s)</source>
-        <translation>%1 个下载</translation>
+        <source>%n download(s)</source>
+        <translation><numerusform>%n 个下载</numerusform></translation>
     </message>
     <message>
         <location filename="../src/ui/downloadswidget.cpp" line="447"/>
@@ -291,10 +291,10 @@ or they will be added automatically when you create or import a torrent.</source
 可以在详情面板中把种子加入收藏，
 创建或导入种子时也会自动加入。</translation>
     </message>
-    <message>
+    <message numerus="yes">
         <location filename="../src/ui/favoriteswidget.cpp" line="82"/>
-        <source>%1 favorites</source>
-        <translation>%1 个收藏</translation>
+        <source>%n favorite(s)</source>
+        <translation><numerusform>%n 个收藏</numerusform></translation>
     </message>
     <message>
         <location filename="../src/ui/favoriteswidget.cpp" line="100"/>
@@ -324,10 +324,10 @@ or they will be added automatically when you create or import a torrent.</source
         <source>No items</source>
         <translation>无内容</translation>
     </message>
-    <message>
+    <message numerus="yes">
         <location filename="../src/ui/feedwidget.cpp" line="97"/>
-        <source>%1 items</source>
-        <translation>%1 个项目</translation>
+        <source>%n item(s)</source>
+        <translation><numerusform>%n 个项目</numerusform></translation>
     </message>
 </context>
 <context>
@@ -579,7 +579,7 @@ or they will be added automatically when you create or import a torrent.</source
     </message>
     <message>
         <location filename="../src/ui/mainwindow.cpp" line="406"/>
-        <location filename="../src/ui/mainwindow.cpp" line="1363"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1367"/>
         <source>👥 Peers: %1</source>
         <translation>👥 对等端：%1</translation>
     </message>
@@ -590,7 +590,7 @@ or they will be added automatically when you create or import a torrent.</source
     </message>
     <message>
         <location filename="../src/ui/mainwindow.cpp" line="408"/>
-        <location filename="../src/ui/mainwindow.cpp" line="902"/>
+        <location filename="../src/ui/mainwindow.cpp" line="906"/>
         <source>📦 Torrents: %1</source>
         <translation>📦 种子：%1</translation>
     </message>
@@ -601,8 +601,8 @@ or they will be added automatically when you create or import a torrent.</source
     </message>
     <message>
         <location filename="../src/ui/mainwindow.cpp" line="695"/>
-        <location filename="../src/ui/mainwindow.cpp" line="1305"/>
-        <location filename="../src/ui/mainwindow.cpp" line="1335"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1309"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1339"/>
         <source>Export Torrent</source>
         <translation>导出种子</translation>
     </message>
@@ -634,45 +634,45 @@ or they will be added automatically when you create or import a torrent.</source
 
 %1</translation>
     </message>
-    <message>
+    <message numerus="yes">
         <location filename="../src/ui/mainwindow.cpp" line="722"/>
-        <source>Exported %1 torrents.</source>
-        <translation>已导出 %1 个种子。</translation>
+        <source>Exported %n torrent(s).</source>
+        <translation><numerusform>已导出 %n 个种子。</numerusform></translation>
     </message>
     <message>
         <location filename="../src/ui/mainwindow.cpp" line="723"/>
-        <location filename="../src/ui/mainwindow.cpp" line="1837"/>
-        <location filename="../src/ui/mainwindow.cpp" line="1844"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1841"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1848"/>
         <source>Export Database</source>
         <translation>导出数据库</translation>
     </message>
-    <message>
+    <message numerus="yes">
         <location filename="../src/ui/mainwindow.cpp" line="724"/>
-        <source>Exported %1 torrents to:
-%2</source>
-        <translation>已把 %1 个种子导出到：
-%2</translation>
+        <source>Exported %n torrent(s) to:
+%1</source>
+        <translation><numerusform>已把 %n 个种子导出到：
+%1</numerusform></translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="728"/>
+        <location filename="../src/ui/mainwindow.cpp" line="729"/>
         <source>Sent the database to a peer.</source>
         <translation>已把数据库发送给对等端。</translation>
     </message>
-    <message>
-        <location filename="../src/ui/mainwindow.cpp" line="733"/>
-        <source>Imported %1 new torrents (%2 already known).</source>
-        <translation>已导入 %1 个新种子（%2 个已存在）。</translation>
+    <message numerus="yes">
+        <location filename="../src/ui/mainwindow.cpp" line="735"/>
+        <source>Imported %n new torrent(s) (%1 already known).</source>
+        <translation><numerusform>已导入 %n 个新种子（%1 个已存在）。</numerusform></translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="734"/>
-        <location filename="../src/ui/mainwindow.cpp" line="1856"/>
-        <location filename="../src/ui/mainwindow.cpp" line="1867"/>
-        <location filename="../src/ui/mainwindow.cpp" line="1885"/>
+        <location filename="../src/ui/mainwindow.cpp" line="738"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1860"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1871"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1889"/>
         <source>Import Database</source>
         <translation>导入数据库</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="735"/>
+        <location filename="../src/ui/mainwindow.cpp" line="739"/>
         <source>Merge finished.
 
 %1 new torrents added
@@ -683,12 +683,12 @@ or they will be added automatically when you create or import a torrent.</source
 %2 个已在你的索引中</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="749"/>
+        <location filename="../src/ui/mainwindow.cpp" line="753"/>
         <source>Data Migration</source>
         <translation>数据迁移</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="750"/>
+        <location filename="../src/ui/mainwindow.cpp" line="754"/>
         <source>A background data migration failed; it will retry on the next start.
 
 %1: %2</source>
@@ -697,269 +697,269 @@ or they will be added automatically when you create or import a torrent.</source
 %1：%2</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="755"/>
+        <location filename="../src/ui/mainwindow.cpp" line="759"/>
         <source>Data migration complete</source>
         <translation>数据迁移完成</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="820"/>
+        <location filename="../src/ui/mainwindow.cpp" line="824"/>
         <source>🔍 Searching...</source>
         <translation>🔍 搜索中...</translation>
     </message>
-    <message>
-        <location filename="../src/ui/mainwindow.cpp" line="851"/>
-        <source>✅ Found %1 torrents</source>
-        <translation>✅ 找到 %1 个种子</translation>
+    <message numerus="yes">
+        <location filename="../src/ui/mainwindow.cpp" line="855"/>
+        <source>✅ Found %n torrent(s)</source>
+        <translation><numerusform>✅ 找到 %n 个种子</numerusform></translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="859"/>
+        <location filename="../src/ui/mainwindow.cpp" line="863"/>
         <source>✅ Found %1 total results (incl. file matches)</source>
         <translation>✅ 共找到 %1 条结果（含文件匹配）</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="891"/>
+        <location filename="../src/ui/mainwindow.cpp" line="895"/>
         <source>✅ Found torrent via DHT</source>
         <translation>✅ 通过 DHT 找到了种子</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="900"/>
+        <location filename="../src/ui/mainwindow.cpp" line="904"/>
         <source>📦 Torrents: %1 + %2</source>
         <translation>📦 种子：%1 + %2</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="925"/>
-        <location filename="../src/ui/mainwindow.cpp" line="2043"/>
+        <location filename="../src/ui/mainwindow.cpp" line="929"/>
+        <location filename="../src/ui/mainwindow.cpp" line="2049"/>
         <source>Rats Search</source>
         <translation>Rats Search</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="925"/>
+        <location filename="../src/ui/mainwindow.cpp" line="929"/>
         <source>Application is still running in the system tray.</source>
         <translation>应用程序仍在系统托盘中运行。</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="935"/>
+        <location filename="../src/ui/mainwindow.cpp" line="939"/>
         <source>Confirm Exit</source>
         <translation>确认退出</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="935"/>
+        <location filename="../src/ui/mainwindow.cpp" line="939"/>
         <source>Are you sure you want to exit Rats Search?</source>
         <translation>确定要退出 Rats Search 吗？</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="996"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1000"/>
         <source>Already indexed: %1</source>
         <translation>已在索引中：%1</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="996"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1000"/>
         <source>Added: %1</source>
         <translation>已添加：%1</translation>
     </message>
-    <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1007"/>
-        <source>Processing %1 torrent file(s)...</source>
-        <translation>正在处理 %1 个种子文件...</translation>
+    <message numerus="yes">
+        <location filename="../src/ui/mainwindow.cpp" line="1011"/>
+        <source>Processing %n torrent file(s)...</source>
+        <translation><numerusform>正在处理 %n 个种子文件...</numerusform></translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1079"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1083"/>
         <source>🕘 Recent searches</source>
         <translation>🕘 最近搜索</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1088"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1092"/>
         <source>Clear search history</source>
         <translation>清除搜索历史</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1097"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1101"/>
         <source>🕘 Search history cleared</source>
         <translation>🕘 搜索历史已清除</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1212"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1216"/>
         <source>📥 Download to default folder</source>
         <translation>📥 下载到默认文件夹</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1217"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1221"/>
         <source>📥 Download to: %1</source>
         <translation>📥 下载到：%1</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1222"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1226"/>
         <source>📂 Choose download location...</source>
         <translation>📂 选择下载位置...</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1224"/>
-        <location filename="../src/ui/mainwindow.cpp" line="1669"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1228"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1673"/>
         <source>❌ Cancel</source>
         <translation>❌ 取消</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1236"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1240"/>
         <source>Select Download Location</source>
         <translation>选择下载位置</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1245"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1249"/>
         <source>⬇️ Download started</source>
         <translation>⬇️ 下载已开始</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1249"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1253"/>
         <source>Download Failed</source>
         <translation>下载失败</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1250"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1254"/>
         <source>Could not start the download. Check the info hash and try again.</source>
         <translation>无法开始下载。请检查 info hash 后重试。</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1275"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1279"/>
         <source>★ Remove from Favorites</source>
         <translation>★ 从收藏中移除</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1278"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1282"/>
         <source>Removed from favorites</source>
         <translation>已从收藏中移除</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1281"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1285"/>
         <source>⭐ Add to Favorites</source>
         <translation>⭐ 加入收藏</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1284"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1288"/>
         <source>Added to favorites: %1</source>
         <translation>已加入收藏：%1</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1291"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1295"/>
         <source>💾 Export to .torrent file...</source>
         <translation>💾 导出为 .torrent 文件...</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1294"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1298"/>
         <source>Show Details</source>
         <translation>显示详情</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1305"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1309"/>
         <source>Export is not available in this build.</source>
         <translation>此版本不支持导出。</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1326"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1330"/>
         <source>Export Torrent As</source>
         <translation>导出种子为</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1326"/>
-        <location filename="../src/ui/mainwindow.cpp" line="1624"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1330"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1628"/>
         <source>Torrent Files (*.torrent);;All Files (*)</source>
         <translation>种子文件 (*.torrent);;所有文件 (*)</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1335"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1339"/>
         <source>Failed to save torrent to:
 %1</source>
         <translation>无法把种子保存到：
 %1</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1338"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1342"/>
         <source>Torrent exported to %1</source>
         <translation>种子已导出到 %1</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1346"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1350"/>
         <source>Migrating data</source>
         <translation>正在迁移数据</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1351"/>
-        <location filename="../src/ui/mainwindow.cpp" line="1823"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1355"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1827"/>
         <source>%1: %2 / %3 (%4%)</source>
         <translation>%1：%2 / %3 (%4%)</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1353"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1357"/>
         <source>%1…</source>
         <translation>%1…</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1387"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1391"/>
         <source>🕷️ Spider: %1</source>
         <translation>🕷️ 爬虫：%1</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1387"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1391"/>
         <source>Active</source>
         <translation>运行中</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1387"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1391"/>
         <source>Stopped</source>
         <translation>已停止</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1398"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1402"/>
         <source>P2P: Not Started</source>
         <translation>P2P：未启动</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1402"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1406"/>
         <source>P2P: No Peers</source>
         <translation>P2P：无对等端</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1406"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1410"/>
         <source>P2P: Connected</source>
         <translation>P2P：已连接</translation>
     </message>
-    <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1419"/>
-        <source>🌐 DHT: %1 nodes</source>
-        <translation>🌐 DHT：%1 个节点</translation>
+    <message numerus="yes">
+        <location filename="../src/ui/mainwindow.cpp" line="1423"/>
+        <source>🌐 DHT: %n node(s)</source>
+        <translation><numerusform>🌐 DHT：%n 个节点</numerusform></translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1421"/>
-        <location filename="../src/ui/mainwindow.cpp" line="1423"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1425"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1427"/>
         <source>🌐 DHT: Offline</source>
         <translation>🌐 DHT：离线</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1431"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1435"/>
         <source>📥 Indexed: %1</source>
         <translation>📥 已索引：%1</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1456"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1460"/>
         <source>Restart Required</source>
         <translation>需要重启</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1457"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1461"/>
         <source>Some changes (network ports or data directory) will take effect after restarting the application.</source>
         <translation>部分更改（网络端口或数据目录）需要重启应用程序后才会生效。</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1468"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1472"/>
         <source>About Rats Search</source>
         <translation>关于 Rats Search</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1486"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1490"/>
         <source>BitTorrent P2P Search Engine</source>
         <translation>BitTorrent P2P 搜索引擎</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1498"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1502"/>
         <source>Built with Qt %1 and librats
 
 A powerful decentralized torrent search engine
@@ -970,37 +970,37 @@ with DHT crawling and full-text search.</source>
 支持 DHT 爬取与全文搜索。</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1508"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1512"/>
         <source>Copyright © 2026</source>
         <translation>Copyright © 2026</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1514"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1518"/>
         <source>GitHub Repository</source>
         <translation>GitHub 仓库</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1522"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1526"/>
         <source>OK</source>
         <translation>确定</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1540"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1544"/>
         <source>Changelog - What's New</source>
         <translation>更新日志 - 新变化</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1554"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1558"/>
         <source>Changelog</source>
         <translation>更新日志</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1566"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1570"/>
         <source>Recent changes and updates to Rats Search</source>
         <translation>Rats Search 的最近更改与更新</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1595"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1599"/>
         <source># Changelog
 
 No changelog available.</source>
@@ -1009,149 +1009,149 @@ No changelog available.</source>
 暂无更新日志。</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1603"/>
-        <location filename="../src/ui/mainwindow.cpp" line="2207"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1607"/>
+        <location filename="../src/ui/mainwindow.cpp" line="2213"/>
         <source>Close</source>
         <translation>关闭</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1622"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1626"/>
         <source>Add Torrent File</source>
         <translation>添加种子文件</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1630"/>
-        <location filename="../src/ui/mainwindow.cpp" line="1654"/>
-        <location filename="../src/ui/mainwindow.cpp" line="1746"/>
-        <location filename="../src/ui/mainwindow.cpp" line="1791"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1634"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1658"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1750"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1795"/>
         <source>Error</source>
         <translation>错误</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1630"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1634"/>
         <source>API not initialized</source>
         <translation>API 未初始化</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1641"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1645"/>
         <source>Torrent already in index: %1</source>
         <translation>种子已在索引中：%1</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1641"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1645"/>
         <source>Added to index: %1</source>
         <translation>已添加到索引：%1</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1649"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1653"/>
         <source>Torrent Added</source>
         <translation>已添加种子</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1649"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1653"/>
         <source>%1 has been added to the search index</source>
         <translation>%1 已添加到搜索索引</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1654"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1658"/>
         <source>Failed to add torrent file:
 %1</source>
         <translation>无法添加种子文件：
 %1</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1666"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1670"/>
         <source>📄 Create from File...</source>
         <translation>📄 从文件创建...</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1667"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1671"/>
         <source>📁 Create from Folder...</source>
         <translation>📁 从文件夹创建...</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1677"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1681"/>
         <source>Select File to Create Torrent From</source>
         <translation>选择用于创建种子的文件</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1678"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1682"/>
         <source>All Files (*)</source>
         <translation>所有文件 (*)</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1680"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1684"/>
         <source>Select Folder to Create Torrent From</source>
         <translation>选择用于创建种子的文件夹</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1688"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1692"/>
         <source>Create Torrent</source>
         <translation>创建种子</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1696"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1700"/>
         <source>Source: %1</source>
         <translation>来源：%1</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1701"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1705"/>
         <source>Trackers (one per line, optional):</source>
         <translation>Tracker（每行一个，可选）：</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1710"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1714"/>
         <source>Comment (optional):</source>
         <translation>注释（可选）：</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1714"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1718"/>
         <source>Created with Rats Search</source>
         <translation>由 Rats Search 创建</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1717"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1721"/>
         <source>Start seeding immediately</source>
         <translation>立即开始做种</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1723"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1727"/>
         <source>Hashing pieces... %p%</source>
         <translation>正在计算分片哈希... %p%</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1733"/>
-        <location filename="../src/ui/mainwindow.cpp" line="2170"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1737"/>
+        <location filename="../src/ui/mainwindow.cpp" line="2176"/>
         <source>Cancel</source>
         <translation>取消</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1734"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1738"/>
         <source>🔨 Create Torrent</source>
         <translation>🔨 创建种子</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1746"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1750"/>
         <source>Torrent creator not available</source>
         <translation>种子创建功能不可用</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1754"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1758"/>
         <source>Creating torrent...</source>
         <translation>正在创建种子...</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1783"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1787"/>
         <source>✅ Torrent created successfully!</source>
         <translation>✅ 种子创建成功！</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1785"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1789"/>
         <source>Torrent Created</source>
         <translation>种子已创建</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1785"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1789"/>
         <source>Torrent created and seeding.
 
 Hash: %1</source>
@@ -1160,53 +1160,53 @@ Hash: %1</source>
 哈希：%1</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1788"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1792"/>
         <source>❌ Failed to create torrent</source>
         <translation>❌ 创建种子失败</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1791"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1795"/>
         <source>Failed to create torrent.</source>
         <translation>创建种子失败。</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1812"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1816"/>
         <source>Transferring database: %1 / %2 (%3%)</source>
         <translation>正在传输数据库：%1 / %2 (%3%)</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1816"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1820"/>
         <source>Transferring database: %1</source>
         <translation>正在传输数据库：%1</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1819"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1823"/>
         <source>Waiting for the peer to prepare its database…</source>
         <translation>正在等待对等端准备其数据库…</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1821"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1825"/>
         <source>Exporting database</source>
         <translation>正在导出数据库</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1821"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1825"/>
         <source>Importing database</source>
         <translation>正在导入数据库</translation>
     </message>
-    <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1824"/>
-        <source>%1: %2 torrents</source>
-        <translation>%1：%2 个种子</translation>
+    <message numerus="yes">
+        <location filename="../src/ui/mainwindow.cpp" line="1828"/>
+        <source>%1: %n torrent(s)</source>
+        <translation><numerusform>%1：%n 个种子</numerusform></translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1837"/>
-        <location filename="../src/ui/mainwindow.cpp" line="1858"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1841"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1862"/>
         <source>Rats Database (*.ratsdb);;All Files (*)</source>
         <translation>Rats 数据库 (*.ratsdb);;所有文件 (*)</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1844"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1848"/>
         <source>Could not start the export.
 
 %1</source>
@@ -1215,12 +1215,12 @@ Hash: %1</source>
 %1</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1868"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1872"/>
         <source>Merge this database into your index?</source>
         <translation>要把此数据库合并到你的索引中吗？</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1870"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1874"/>
         <source>Torrents you already have are kept; only new ones are added.
 
 %1</source>
@@ -1229,12 +1229,12 @@ Hash: %1</source>
 %1</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1874"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1878"/>
         <source>Apply my content filters to the imported torrents</source>
         <translation>对导入的种子应用我的内容过滤器</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1885"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1889"/>
         <source>Could not start the import.
 
 %1</source>
@@ -1243,15 +1243,15 @@ Hash: %1</source>
 %1</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1899"/>
-        <location filename="../src/ui/mainwindow.cpp" line="1905"/>
-        <location filename="../src/ui/mainwindow.cpp" line="1926"/>
-        <location filename="../src/ui/mainwindow.cpp" line="1937"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1903"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1909"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1932"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1943"/>
         <source>Download Database</source>
         <translation>下载数据库</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1906"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1910"/>
         <source>None of the connected peers is sharing its database.
 
 Sharing is something each user enables for themselves, and older clients do not support it at all. Try again later, or import a database file instead.</source>
@@ -1259,18 +1259,18 @@ Sharing is something each user enables for themselves, and older clients do not 
 
 共享需要每位用户自行启用，较旧的客户端则完全不支持。请稍后再试，或改为导入数据库文件。</translation>
     </message>
-    <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1921"/>
-        <source>%1… — %2 torrents (%3)</source>
-        <translation>%1… — %2 个种子 (%3)</translation>
+    <message numerus="yes">
+        <location filename="../src/ui/mainwindow.cpp" line="1925"/>
+        <source>%1… — %n torrent(s) (%2)</source>
+        <translation><numerusform>%1… — %n 个种子 (%2)</numerusform></translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1926"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1932"/>
         <source>Ask which peer for its whole index?</source>
         <translation>要向哪个对等端请求完整索引？</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1937"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1943"/>
         <source>Could not ask the peer.
 
 %1</source>
@@ -1279,57 +1279,57 @@ Sharing is something each user enables for themselves, and older clients do not 
 %1</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1956"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1962"/>
         <source>Rats Search - P2P Torrent Search Engine</source>
         <translation>Rats Search - P2P 种子搜索引擎</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1961"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1967"/>
         <source>Show Window</source>
         <translation>显示窗口</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1966"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1972"/>
         <source>Settings</source>
         <translation>设置</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="1975"/>
+        <location filename="../src/ui/mainwindow.cpp" line="1981"/>
         <source>Quit</source>
         <translation>退出</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="2043"/>
+        <location filename="../src/ui/mainwindow.cpp" line="2049"/>
         <source>Application minimized to tray. Click to restore.</source>
         <translation>应用程序已最小化到托盘。单击可恢复。</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="2088"/>
+        <location filename="../src/ui/mainwindow.cpp" line="2094"/>
         <source>Checking for updates...</source>
         <translation>正在检查更新...</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="2095"/>
+        <location filename="../src/ui/mainwindow.cpp" line="2101"/>
         <source>No Updates Available</source>
         <translation>没有可用更新</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="2096"/>
+        <location filename="../src/ui/mainwindow.cpp" line="2102"/>
         <source>You are running the latest version of Rats Search (%1).</source>
         <translation>你正在使用最新版本的 Rats Search (%1)。</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="2112"/>
+        <location filename="../src/ui/mainwindow.cpp" line="2118"/>
         <source>Update Available</source>
         <translation>有可用更新</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="2120"/>
+        <location filename="../src/ui/mainwindow.cpp" line="2126"/>
         <source>New Version Available!</source>
         <translation>有新版本可用！</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="2124"/>
+        <location filename="../src/ui/mainwindow.cpp" line="2130"/>
         <source>A new version of Rats Search is available.
 
 Current version: %1
@@ -1340,72 +1340,72 @@ New version: %2</source>
 新版本：%2</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="2131"/>
+        <location filename="../src/ui/mainwindow.cpp" line="2137"/>
         <source>What's new:</source>
         <translation>新变化：</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="2144"/>
+        <location filename="../src/ui/mainwindow.cpp" line="2150"/>
         <source>Downloading... %p%</source>
         <translation>正在下载... %p%</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="2155"/>
+        <location filename="../src/ui/mainwindow.cpp" line="2161"/>
         <source>Remind Me Later</source>
         <translation>稍后提醒我</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="2158"/>
+        <location filename="../src/ui/mainwindow.cpp" line="2164"/>
         <source>Download &amp;&amp; Install</source>
         <translation>下载并安装</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="2172"/>
+        <location filename="../src/ui/mainwindow.cpp" line="2178"/>
         <source>Starting download...</source>
         <translation>正在开始下载...</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="2179"/>
+        <location filename="../src/ui/mainwindow.cpp" line="2185"/>
         <source>Downloading update...</source>
         <translation>正在下载更新...</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="2182"/>
+        <location filename="../src/ui/mainwindow.cpp" line="2188"/>
         <source>Extracting update...</source>
         <translation>正在解压更新...</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="2185"/>
+        <location filename="../src/ui/mainwindow.cpp" line="2191"/>
         <source>Ready to install!</source>
         <translation>已准备好安装！</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="2188"/>
+        <location filename="../src/ui/mainwindow.cpp" line="2194"/>
         <source>Error occurred</source>
         <translation>发生错误</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="2204"/>
+        <location filename="../src/ui/mainwindow.cpp" line="2210"/>
         <source>Error: %1</source>
         <translation>错误：%1</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="2206"/>
+        <location filename="../src/ui/mainwindow.cpp" line="2212"/>
         <source>Retry</source>
         <translation>重试</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="2215"/>
+        <location filename="../src/ui/mainwindow.cpp" line="2221"/>
         <source>Downloading update: %1%</source>
         <translation>正在下载更新：%1%</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="2222"/>
+        <location filename="../src/ui/mainwindow.cpp" line="2228"/>
         <source>Install Update</source>
         <translation>安装更新</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="2223"/>
+        <location filename="../src/ui/mainwindow.cpp" line="2229"/>
         <source>The update has been downloaded and is ready to install.
 
 The application will close and restart automatically.
@@ -1418,42 +1418,42 @@ Do you want to install the update now?</source>
 现在安装此更新吗？</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="2251"/>
+        <location filename="../src/ui/mainwindow.cpp" line="2257"/>
         <source>Update error: %1</source>
         <translation>更新错误：%1</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="2322"/>
+        <location filename="../src/ui/mainwindow.cpp" line="2328"/>
         <source>End User License Agreement</source>
         <translation>最终用户许可协议</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="2344"/>
+        <location filename="../src/ui/mainwindow.cpp" line="2350"/>
         <source>Rats Search - License Agreement</source>
         <translation>Rats Search - 许可协议</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="2350"/>
+        <location filename="../src/ui/mainwindow.cpp" line="2356"/>
         <source>Please read and accept the following End User License Agreement before using this software.</source>
         <translation>在使用本软件之前，请阅读并接受以下最终用户许可协议。</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="2406"/>
+        <location filename="../src/ui/mainwindow.cpp" line="2412"/>
         <source>I have read and understood the End User License Agreement</source>
         <translation>我已阅读并理解最终用户许可协议</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="2409"/>
+        <location filename="../src/ui/mainwindow.cpp" line="2415"/>
         <source>⚠️ By clicking 'I Accept', you acknowledge that you have read, understood, and agree to be bound by all terms and conditions of this Agreement. You accept full responsibility for your use of this Software.</source>
         <translation>⚠️ 点击“我接受”即表示你已阅读、理解并同意受本协议全部条款和条件的约束。你需对自己使用本软件的行为承担全部责任。</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="2419"/>
+        <location filename="../src/ui/mainwindow.cpp" line="2425"/>
         <source>Decline &amp;&amp; Exit</source>
         <translation>拒绝并退出</translation>
     </message>
     <message>
-        <location filename="../src/ui/mainwindow.cpp" line="2424"/>
+        <location filename="../src/ui/mainwindow.cpp" line="2430"/>
         <source>I Accept</source>
         <translation>我接受</translation>
     </message>
@@ -1988,15 +1988,15 @@ Do you want to install the update now?</source>
         <source>Cleanup failed: %1</source>
         <translation>清理失败：%1</translation>
     </message>
-    <message>
+    <message numerus="yes">
         <location filename="../src/ui/settingsdialog.cpp" line="786"/>
-        <source>%1 of %2 torrents don't match the current filters.</source>
-        <translation>%2 个种子中有 %1 个不符合当前过滤条件。</translation>
+        <source>%n of %1 torrent(s) don't match the current filters.</source>
+        <translation><numerusform>%1 个种子中有 %n 个不符合当前过滤条件。</numerusform></translation>
     </message>
-    <message>
+    <message numerus="yes">
         <location filename="../src/ui/settingsdialog.cpp" line="787"/>
-        <source>Removed %1 torrents that didn't match the filters.</source>
-        <translation>已移除 %1 个不符合过滤条件的种子。</translation>
+        <source>Removed %n torrent(s) that didn't match the filters.</source>
+        <translation><numerusform>已移除 %n 个不符合过滤条件的种子。</numerusform></translation>
     </message>
     <message>
         <location filename="../src/ui/settingsdialog.cpp" line="803"/>
@@ -2076,10 +2076,10 @@ Do you want to install the update now?</source>
         <source>Loading...</source>
         <translation>加载中...</translation>
     </message>
-    <message>
+    <message numerus="yes">
         <location filename="../src/ui/toptorrentswidget.cpp" line="106"/>
-        <source>%1 torrents</source>
-        <translation>%1 个种子</translation>
+        <source>%n torrent(s)</source>
+        <translation><numerusform>%n 个种子</numerusform></translation>
     </message>
 </context>
 <context>
@@ -2224,10 +2224,10 @@ Do you want to install the update now?</source>
         <source>Unknown</source>
         <translation>未知</translation>
     </message>
-    <message>
+    <message numerus="yes">
         <location filename="../src/ui/torrentdetailspanel.cpp" line="449"/>
-        <source>%1 files</source>
-        <translation>%1 个文件</translation>
+        <source>%n file(s)</source>
+        <translation><numerusform>%n 个文件</numerusform></translation>
     </message>
     <message>
         <location filename="../src/ui/torrentdetailspanel.cpp" line="528"/>
@@ -2250,10 +2250,10 @@ Do you want to install the update now?</source>
         <source>★ In Favorites (Remove)</source>
         <translation>★ 已收藏（移除）</translation>
     </message>
-    <message>
+    <message numerus="yes">
         <location filename="../src/ui/torrentdetailspanel.cpp" line="680"/>
-        <source>%1 votes</source>
-        <translation>%1 次投票</translation>
+        <source>%n vote(s)</source>
+        <translation><numerusform>%n 次投票</numerusform></translation>
     </message>
     <message>
         <location filename="../src/ui/torrentdetailspanel.cpp" line="689"/>
@@ -2367,18 +2367,13 @@ Do you want to install the update now?</source>
         <source>No files</source>
         <translation>无文件</translation>
     </message>
-    <message>
-        <location filename="../src/ui/torrentfileswidget.cpp" line="88"/>
-        <source>file</source>
-        <translation>个文件</translation>
+    <message numerus="yes">
+        <location filename="../src/ui/torrentfileswidget.cpp" line="87"/>
+        <source>%n file(s) • %1</source>
+        <translation><numerusform>%n 个文件 • %1</numerusform></translation>
     </message>
     <message>
-        <location filename="../src/ui/torrentfileswidget.cpp" line="88"/>
-        <source>files</source>
-        <translation>个文件</translation>
-    </message>
-    <message>
-        <location filename="../src/ui/torrentfileswidget.cpp" line="134"/>
+        <location filename="../src/ui/torrentfileswidget.cpp" line="132"/>
         <source>Select a torrent to view files</source>
         <translation>选择一个种子以查看文件</translation>
     </message>

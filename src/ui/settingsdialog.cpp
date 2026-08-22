@@ -783,8 +783,8 @@ void SettingsDialog::runCleanup(bool dryRun)
             const int matched = data["matched"].toInt();
             const int scanned = data["scanned"].toInt();
             cleanupProgress_->setText(dryRun
-                    ? tr("%1 of %2 torrents don't match the current filters.").arg(matched).arg(scanned)
-                    : tr("Removed %1 torrents that didn't match the filters.").arg(matched));
+                    ? tr("%n of %1 torrent(s) don't match the current filters.", nullptr, matched).arg(scanned)
+                    : tr("Removed %n torrent(s) that didn't match the filters.", nullptr, matched));
         });
 }
 

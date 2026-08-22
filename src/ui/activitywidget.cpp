@@ -152,7 +152,7 @@ void ActivityWidget::loadRecentTorrents()
         }
     }
 
-    statusLabel_->setText(tr("%1 torrents").arg(torrentList_->count()));
+    statusLabel_->setText(tr("%n torrent(s)", nullptr, torrentList_->count()));
     isInitialized_ = true;
 
     // Start the display timer to process any queued torrents
@@ -234,14 +234,14 @@ void ActivityWidget::addTorrentToDisplay(const rats::domain::Torrent& torrent)
     }
 
     // Update status
-    statusLabel_->setText(tr("%1 torrents").arg(torrentList_->count()));
+    statusLabel_->setText(tr("%n torrent(s)", nullptr, torrentList_->count()));
 }
 
 void ActivityWidget::updateQueueCounter()
 {
     int queueSize = displayQueue_.size();
     if (queueSize > 0) {
-        queueLabel_->setText(tr("(and %1 more)").arg(queueSize));
+        queueLabel_->setText(tr("(and %n more)", nullptr, queueSize));
         queueLabel_->show();
     } else {
         queueLabel_->hide();

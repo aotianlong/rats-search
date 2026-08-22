@@ -83,10 +83,8 @@ void TorrentFilesWidget::setFiles(const QString& hash, const QString& name, cons
     for (const File& f : files) {
         totalSize += f.size;
     }
-    infoLabel_->setText(QString("%1 %2 • %3")
-            .arg(files.size())
-            .arg(files.size() == 1 ? tr("file") : tr("files"))
-            .arg(rats::ui::formatSize(totalSize)));
+    infoLabel_->setText(
+        tr("%n file(s) • %1", nullptr, static_cast<int>(files.size())).arg(rats::ui::formatSize(totalSize)));
 
     // Block signals while populating
     filesTree_->blockSignals(true);

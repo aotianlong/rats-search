@@ -446,7 +446,7 @@ void TorrentDetailsPanel::setTorrent(const rats::domain::Torrent& torrent)
 
     // Info
     sizeLabel_->setText(rats::ui::formatSize(torrent.size));
-    filesLabel_->setText(tr("%1 files").arg(torrent.files));
+    filesLabel_->setText(tr("%n file(s)", nullptr, torrent.files));
     dateLabel_->setText(torrent.added.isValid() ? torrent.added.toString("MMMM d, yyyy") : "-");
 
     // Category — display the human content type + optional finer category.
@@ -677,7 +677,7 @@ void TorrentDetailsPanel::updateVotingButtons()
 {
     int total = currentTorrent_.good + currentTorrent_.bad;
     if (total > 0) {
-        votesLabel_->setText(tr("%1 votes").arg(total));
+        votesLabel_->setText(tr("%n vote(s)", nullptr, total));
     } else {
         votesLabel_->setText(tr("No votes yet"));
     }
