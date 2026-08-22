@@ -45,7 +45,7 @@ A high-performance BitTorrent search program for desktop and server. It collects
 * Native C++/Qt application — fast, responsive, and lightweight
 * Modern dark UI with customizable settings
 * System tray support with minimize/close to tray
-* Translations: English, Russian, Ukrainian, Chinese, Spanish, French, German, Japanese, Portuguese, Italian, Hindi
+* Translations: English, Russian, Japanese, Chinese, Korean, German, Spanish, French
 * Console mode for headless server operation
 * REST & WebSocket API for custom clients and integrations
 

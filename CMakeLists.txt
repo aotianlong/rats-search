@@ -222,6 +222,9 @@ set(TS_FILES
     translations/ratssearch_de.ts
     translations/ratssearch_es.ts
     translations/ratssearch_fr.ts
+    translations/ratssearch_ja.ts
+    translations/ratssearch_zh.ts
+    translations/ratssearch_ko.ts
 )
 
 # Generate .qm files from .ts files

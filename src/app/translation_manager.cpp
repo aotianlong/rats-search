@@ -25,7 +25,8 @@ void TranslationManager::registerLanguages()
     // English is built into the sources; the rest must have a .qm in
     // translations/.
     languages_ = { { "en", "English", "🇬🇧" }, { "ru", "Русский", "🇷🇺" }, { "de", "Deutsch", "🇩🇪" },
-        { "es", "Español", "🇪🇸" }, { "fr", "Français", "🇫🇷" } };
+        { "es", "Español", "🇪🇸" }, { "fr", "Français", "🇫🇷" }, { "ja", "日本語", "🇯🇵" },
+        { "zh", "中文", "🇨🇳" }, { "ko", "한국어", "🇰🇷" } };
 }
 
 void TranslationManager::initialize(QCoreApplication* app, const QString& translationsPath)
@@ -133,8 +134,11 @@ bool TranslationManager::loadTranslation(const QString& code)
         qWarning() << "Could not load app translation:" << appQmFile;
     }
 
-    // Try to load Qt translation
-    QString qtQmFile = QString("qt_%1.qm").arg(code);
+    // Try to load Qt translation. Qt ships its own catalogs under the full
+    // locale name for Chinese (qt_zh_CN.qm), and QTranslator only ever strips
+    // suffixes, so "zh" alone would never find it.
+    QString qtCode = (code == "zh") ? QStringLiteral("zh_CN") : code;
+    QString qtQmFile = QString("qt_%1.qm").arg(qtCode);
     QString qtPath = QLibraryInfo::path(QLibraryInfo::TranslationsPath);
 
     bool qtLoaded = qtTranslator_->load(qtQmFile, qtPath);
