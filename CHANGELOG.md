@@ -2,6 +2,41 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.2.6](https://github.com/DEgITx/rats-search/compare/v2.2.5...v2.2.6) (2026-08-22)
+
+
+### 🐛 Bug Fixes
+
+
+- **db:** Sync db only for supported peers([000bea1](https://github.com/DEgITx/rats-search/commit/000bea134b1c7c0a80e674d2fdaf95f9c5fca30b)) by @DEgITx
+- **translations:** Update translations to correct one([586201f](https://github.com/DEgITx/rats-search/commit/586201fa7860f4413b6904bf4b8824ffc78263fa)) by @DEgITx
+
+
+### 📚 Documentation
+
+
+- Update CHANGELOG.md for v2.2.5([7bee5e8](https://github.com/DEgITx/rats-search/commit/7bee5e86c4435a02b4467e48b2eb952ca38618ee)) by @github-actions[bot]
+- **readme:** Update feature list([a8ce484](https://github.com/DEgITx/rats-search/commit/a8ce4844210e0c6f1405031147492ba435f2568a)) by @DEgITx
+
+
+### 🚀 Features
+
+
+- **translations:** Kr + ch + jp translations([ec379b4](https://github.com/DEgITx/rats-search/commit/ec379b4795ab0a38a404b8357afb8e82a41d3af5)) by @DEgITx
+
+
+
+
+### 👥 Contributors
+
+
+
+- [@DEgITx](https://github.com/DEgITx) — 4 commits
+
+
+- [@github-actions[bot]](https://github.com/github-actions[bot]) — 1 commit
+
+
 ## [2.2.5](https://github.com/DEgITx/rats-search/compare/v2.2.4...v2.2.5) (2026-08-21)
 
 
