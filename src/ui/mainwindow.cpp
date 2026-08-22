@@ -1892,7 +1892,9 @@ void MainWindow::pullDatabaseFromPeer()
     if (!app_->api())
         return;
 
-    app_->api()->call("peers.list", QJsonObject {}, [this](const Result& response) {
+    // database.peers, not peers.list: a peer that does not share its database can
+    // only answer with a refusal, so offering it as a choice would be a dead end.
+    app_->api()->call("database.peers", QJsonObject {}, [this](const Result& response) {
         if (!response.ok()) {
             QMessageBox::warning(this, tr("Download Database"), response.error());
             return;
@@ -1901,7 +1903,9 @@ void MainWindow::pullDatabaseFromPeer()
         const QJsonArray peers = response.data().toArray();
         if (peers.isEmpty()) {
             QMessageBox::information(this, tr("Download Database"),
-                tr("No peers are connected right now. Try again once the P2P network is up."));
+                tr("None of the connected peers is sharing its database.\n\n"
+                   "Sharing is something each user enables for themselves, and older clients do not support "
+                   "it at all. Try again later, or import a database file instead."));
             return;
         }
 

@@ -665,6 +665,20 @@ void ApiRouter::registerMethods()
         respond(Result::success(sync->statusJson()));
     });
 
+    add("database.peers", [this](const QJsonObject& /*params*/, const ResultCallback& respond) {
+        // Only the peers a pull could actually succeed against: they advertised
+        // databaseSharing in the handshake. Peers with it off, and clients too old
+        // to know the feature, are absent rather than listed and unusable.
+        const QHash<QString, domain::PeerStats> peers = app_->peers()->databaseSharingPeers();
+        QJsonArray result;
+        for (auto it = peers.constBegin(); it != peers.constEnd(); ++it) {
+            QJsonObject peer = it.value().toJson();
+            peer["peerId"] = it.key();
+            result.append(peer);
+        }
+        respond(Result::success(result));
+    });
+
     add("database.status", [this](const QJsonObject& /*params*/, const ResultCallback& respond) {
         service::DatabaseSyncService* sync = app_->databaseSync();
         if (!sync) {

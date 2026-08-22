@@ -168,7 +168,12 @@ void Application::applyConfig()
     d_->trackers->setCountScrapingEnabled(c->trackersEnabled());
     d_->trackers->setInfoScrapingEnabled(c->trackersEnabled());
     d_->replication->setEnabled(c->p2pReplication());
-    d_->databaseSync->setSharingEnabled(d_->options.shareDatabase.value_or(c->databaseSharing()));
+    // One value drives both: what we actually do when asked, and what we tell
+    // peers we would do. They must not disagree, or peers offer us to users who
+    // will only ever get a refusal.
+    const bool shareDatabase = d_->options.shareDatabase.value_or(c->databaseSharing());
+    d_->databaseSync->setSharingEnabled(shareDatabase);
+    d_->peers->setDatabaseSharing(shareDatabase);
     d_->transport->setPortMappingEnabled(c->upnpEnabled());
     d_->transport->setHolePunchEnabled(c->holePunchEnabled());
     d_->crawler->setWalkInterval(c->spiderWalkInterval());

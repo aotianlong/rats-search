@@ -81,10 +81,10 @@ public:
     bool p2pReplicationServer() const;
     void setP2pReplicationServer(bool enabled);
 
-    // Whether other peers may pull our whole index (databaseRequest). Off by
-    // default: unlike the trickle of randomTorrents replication, serving a full
-    // dump costs a full export plus gigabytes of upload, so it is the user's
-    // call, not a default.
+    // Whether other peers may pull our whole index (databaseRequest). On by
+    // default, like the rest of the replication machinery — a swarm where nobody
+    // serves cannot replicate at all. It is also advertised in the client_info
+    // handshake, so peers only ever offer each other partners that will say yes.
     bool databaseSharing() const;
     void setDatabaseSharing(bool enabled);
 

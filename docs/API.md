@@ -121,6 +121,7 @@ See [WebSocket Events](#websocket-events) for details.
 | `database.export` | Write the whole index to a portable `.ratsdb` dump |
 | `database.import` | Merge a `.ratsdb` dump into the index |
 | `database.pull` | Ask a connected peer for its whole index |
+| `database.peers` | Connected peers that will actually serve their index |
 | `database.status` | Current state of the running database sync |
 | `database.cancel` | Stop the running database sync |
 | `download.add` | Start downloading (hash or magnet) |
@@ -460,13 +461,48 @@ GET http://localhost:8095/api/database.pull?peer=ab12cd34…
 The peer answers over P2P (`databaseRequest` / `databaseRequest_response`), then
 exports its index and sends the dump over the librats file transfer; it arrives
 in `<dataDir>/dbsync/`, is merged, and is deleted. The peer only agrees when it
-has the `databaseSharing` config key enabled — it is **off by default**, so a
-refusal (`"reason": "sharing disabled"`) is the normal answer from a peer that
-has not opted in. There is no interactive confirmation on either side: the
-decision is entirely the config key's, which is what makes the headless daemon
-usable. A daemon can also be pinned with the `--share-db=on|off` CLI flag, which
-overrides the key for that run and cannot be changed through `config.set`. In the other direction, a file offer from a peer we did not ask
+has the `databaseSharing` config key enabled — **on by default**, and advertised
+in the handshake, so use `database.peers` rather than `peers.list` to pick a
+target and a refusal becomes the exception rather than the rule. There is no
+interactive confirmation on either side: the decision is entirely the config
+key's, which is what makes the headless daemon usable. A daemon can also be
+pinned with the `--share-db=on|off` CLI flag, which overrides the key for that
+run and cannot be changed through `config.set`. In the other direction, a file offer from a peer we did not ask
 is rejected unopened.
+
+---
+
+#### `database.peers` - Peers worth asking
+
+```
+GET http://localhost:8095/api/database.peers
+```
+
+The subset of `peers.list` that advertised `databaseSharing` in the `client_info`
+handshake. Peers with sharing turned off — and clients older than the feature,
+which never send the flag — are absent: asking them can only produce a refusal or
+a silence, so they are not worth offering as a choice. Same object shape as
+`peers.list`.
+
+**Response:**
+
+```json
+{
+    "success": true,
+    "data": [
+        {
+            "peerId": "ab12cd34…",
+            "clientVersion": "2.2.3",
+            "torrents": 184320,
+            "files": 921600,
+            "totalSize": 4398046511104,
+            "peersConnected": 8,
+            "connectedAt": 1737030000000,
+            "databaseSharing": true
+        }
+    ]
+}
+```
 
 ---
 
@@ -720,11 +756,17 @@ GET http://localhost:8095/api/peers.list
             "files": 800000,
             "totalSize": 120000000000000,
             "peersConnected": 8,
-            "connectedAt": 1700000000000
+            "connectedAt": 1700000000000,
+            "databaseSharing": true
         }
     ]
 }
 ```
+
+`databaseSharing` is what the peer advertised in its handshake: whether it will
+serve its whole index to a `database.pull`. Clients older than the feature never
+send it and read as `false`. `database.peers` returns exactly the entries where
+it is `true`.
 
 ---
 

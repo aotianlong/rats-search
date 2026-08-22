@@ -28,6 +28,16 @@ public:
     // Our own advertised stats; call when the database totals change.
     void updateOurStats(qint64 torrents, qint64 files, qint64 totalSize);
 
+    // Whether we advertise that peers may pull our whole index. A change is
+    // re-broadcast to everyone already connected, so their "who can I sync
+    // with?" list stops being wrong the moment the user flips the setting.
+    void setDatabaseSharing(bool enabled);
+
+    // Peers that advertised they will serve their index. Clients older than the
+    // feature never send the flag and so never appear here — which is correct,
+    // asking them would only produce a silence.
+    QHash<QString, domain::PeerStats> databaseSharingPeers() const;
+
     QHash<QString, domain::PeerStats> connectedPeers() const;
     qint64 remoteTorrentsCount() const; // sum of torrents over all connected peers
 
@@ -45,6 +55,7 @@ private:
     qint64 ourTorrents_ = 0;
     qint64 ourFiles_ = 0;
     qint64 ourTotalSize_ = 0;
+    bool ourDatabaseSharing_ = false;
 
     mutable QMutex mutex_;
     QHash<QString, domain::PeerStats> peers_;

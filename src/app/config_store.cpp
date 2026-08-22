@@ -52,7 +52,7 @@ void ConfigStore::setDefaults()
 
         // P2P
         { "p2pConnections", 10 }, { "p2pReplication", true }, { "p2pReplicationServer", true },
-        { "databaseSharing", false },
+        { "databaseSharing", true },
 
         // Indexer
         { "indexer", true }, { "trackers", true }, { "restApi", false }, { "upnp", true }, { "holePunch", true },
@@ -250,7 +250,7 @@ void ConfigStore::setP2pReplicationServer(bool enabled)
 
 bool ConfigStore::databaseSharing() const
 {
-    return config_["databaseSharing"].toBool(false);
+    return config_["databaseSharing"].toBool(true);
 }
 void ConfigStore::setDatabaseSharing(bool enabled)
 {

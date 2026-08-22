@@ -40,9 +40,10 @@ class IndexingService;
 //   B -> A  databaseRequest_response   accepted + row count, or a refusal
 //   B       exports to a temp file, then offers it over librats file transfer
 //   A       accepts the offer *only* from the peer it asked, imports, deletes
-// Serving is gated by the `databaseSharing` config key (off by default: a full
-// index can be gigabytes). Receiving is gated by having asked: an offer from a
-// peer we did not request from is rejected unopened.
+// Serving is gated by the `databaseSharing` config key (on by default) and
+// advertised in the client_info handshake, so a client only ever offers its user
+// peers that will actually answer. Receiving is gated by having asked: an offer
+// from a peer we did not request from is rejected unopened.
 class DatabaseSyncService : public QObject {
     Q_OBJECT
 

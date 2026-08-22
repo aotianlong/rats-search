@@ -267,7 +267,8 @@ QWidget* SettingsDialog::createNetworkTab()
     databaseSharingCheck_ = new QCheckBox(tr("Let peers download my whole database"));
     databaseSharingCheck_->setToolTip(
         tr("Answer a peer's request for a full copy of your index. Producing one exports the "
-           "whole database and uploads it, which can take a long time and a lot of bandwidth."));
+           "whole database and uploads it, which can take a long time and a lot of bandwidth. "
+           "Turning this off also hides you from other users' peer lists."));
     p2pLayout->addRow(databaseSharingCheck_);
 
     tabLayout->addWidget(p2pGroup);

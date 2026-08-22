@@ -16,6 +16,10 @@ struct PeerStats {
     qint64 totalSize = 0;
     int peersConnected = 0;
     qint64 connectedAt = 0; // ms since epoch, set locally on connect
+    // Whether this peer will serve its whole index to a databaseRequest. Absent
+    // from the handshake of clients older than the feature, which read the same
+    // as "no" — either way there is nothing to ask them for.
+    bool databaseSharing = false;
 
     QJsonObject toJson() const
     {
@@ -26,6 +30,7 @@ struct PeerStats {
             { "totalSize", totalSize },
             { "peersConnected", peersConnected },
             { "connectedAt", connectedAt },
+            { "databaseSharing", databaseSharing },
         };
     }
 
@@ -41,6 +46,7 @@ struct PeerStats {
         s.totalSize = obj["totalSize"].toVariant().toLongLong();
         s.peersConnected = obj["peersConnected"].toInt();
         s.connectedAt = obj["connectedAt"].toVariant().toLongLong();
+        s.databaseSharing = obj["databaseSharing"].toBool(false);
         return s;
     }
 };

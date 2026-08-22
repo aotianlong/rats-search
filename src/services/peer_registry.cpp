@@ -23,6 +23,18 @@ void PeerRegistry::updateOurStats(qint64 torrents, qint64 files, qint64 totalSiz
     ourTotalSize_ = totalSize;
 }
 
+void PeerRegistry::setDatabaseSharing(bool enabled)
+{
+    if (ourDatabaseSharing_ == enabled)
+        return;
+    ourDatabaseSharing_ = enabled;
+
+    // Peers cached our handshake; without a re-announce they would keep offering
+    // (or keep hiding) us for the rest of the connection.
+    if (transport_ && transport_->isRunning())
+        transport_->broadcastMessage(QStringLiteral("client_info"), ourStats().toJson());
+}
+
 domain::PeerStats PeerRegistry::ourStats() const
 {
     domain::PeerStats s;
@@ -31,6 +43,7 @@ domain::PeerStats PeerRegistry::ourStats() const
     s.files = ourFiles_;
     s.totalSize = ourTotalSize_;
     s.peersConnected = transport_->peerCount();
+    s.databaseSharing = ourDatabaseSharing_;
     return s;
 }
 
@@ -53,6 +66,12 @@ void PeerRegistry::onClientInfo(const QString& peerId, const QJsonObject& data)
 
     {
         QMutexLocker locker(&mutex_);
+        // A peer re-announces when it toggles database sharing, so this is not
+        // necessarily the first client_info of the connection: keep the original
+        // connect time rather than resetting it on every update.
+        auto existing = peers_.constFind(peerId);
+        if (existing != peers_.constEnd() && existing->connectedAt > 0)
+            stats.connectedAt = existing->connectedAt;
         peers_[peerId] = stats;
     }
 
@@ -65,6 +84,17 @@ QHash<QString, domain::PeerStats> PeerRegistry::connectedPeers() const
 {
     QMutexLocker locker(&mutex_);
     return peers_;
+}
+
+QHash<QString, domain::PeerStats> PeerRegistry::databaseSharingPeers() const
+{
+    QMutexLocker locker(&mutex_);
+    QHash<QString, domain::PeerStats> result;
+    for (auto it = peers_.constBegin(); it != peers_.constEnd(); ++it) {
+        if (it.value().databaseSharing)
+            result.insert(it.key(), it.value());
+    }
+    return result;
 }
 
 qint64 PeerRegistry::remoteTorrentsCount() const
