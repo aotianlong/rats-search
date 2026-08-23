@@ -56,6 +56,7 @@ void ConfigStore::setDefaults()
 
         // Indexer
         { "indexer", true }, { "trackers", true }, { "restApi", false }, { "upnp", true }, { "holePunch", true },
+        { "relay", true }, { "relayServe", false },
 
         // Spider
         { "spider", QJsonObject { { "walkInterval", 100 } } },
@@ -296,6 +297,16 @@ bool ConfigStore::upnpEnabled() const
 bool ConfigStore::holePunchEnabled() const
 {
     return config_["holePunch"].toBool(true);
+}
+
+bool ConfigStore::relayEnabled() const
+{
+    return config_["relay"].toBool(true);
+}
+
+bool ConfigStore::relayServeEnabled() const
+{
+    return config_["relayServe"].toBool(false);
 }
 
 // ============================================================================

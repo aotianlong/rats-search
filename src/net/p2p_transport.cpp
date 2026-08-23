@@ -21,6 +21,7 @@
 #include "librats/subsystems/peer_exchange.h"
 #include "librats/subsystems/port_mapping_service.h"
 #include "librats/subsystems/reconnection.h"
+#include "librats/subsystems/relay.h"
 #include "librats/util/json.h"
 #ifdef RATS_SEARCH_FEATURES
 #include "librats/subsystems/bittorrent.h"
@@ -79,6 +80,7 @@ struct P2PTransport::Private {
     librats::ReconnectionService* reconnect = nullptr;
     librats::PeerExchange* pex = nullptr;
     librats::HolePunch* holePunch = nullptr;
+    librats::Relay* relay = nullptr;
     librats::FileTransfer* fileTransfer = nullptr;
     librats::StorageManager* storage = nullptr;
     librats::Bittorrent* bittorrent = nullptr;
@@ -345,6 +347,23 @@ bool P2PTransport::start()
             d_->holePunch = d_->node->add_subsystem(std::make_unique<librats::HolePunch>(std::move(hpCfg)));
         }
 
+        // The rung below punching: for the peers no punch can ever reach (symmetric
+        // NAT on one side, UDP dropped outright), borrow a path through a node both
+        // ends already hold. Attach order against HolePunch does not matter — each
+        // resolves the other through the ServiceRegistry in start() — and with both
+        // on, the ladder runs itself: a peer PEX cannot dial goes to HolePunch, a
+        // hopeless one goes to Relay, and a circuit that comes up asks for a punch to
+        // replace itself with a direct link.
+        //
+        // Carrying *other* peers' circuits is a separate, off-by-default decision
+        // (relayServe): unlike a hole-punch rendezvous, it spends real uplink on
+        // somebody else's transfer.
+        if (relayEnabled_) {
+            librats::Relay::Config rlCfg;
+            rlCfg.serve = relayServeEnabled_;
+            d_->relay = d_->node->add_subsystem(std::make_unique<librats::Relay>(std::move(rlCfg)));
+        }
+
         // Peer exchange: peers gossip who else they hold, so the mesh keeps healing
         // when the DHT is throttled or blocked. It is also what makes punching
         // reachable in practice — a PEX entry carries the peer *id* an unreachable
@@ -401,6 +420,7 @@ bool P2PTransport::start()
             d_->reconnect = nullptr;
             d_->pex = nullptr;
             d_->holePunch = nullptr;
+            d_->relay = nullptr;
             d_->fileTransfer = nullptr;
             d_->storage = nullptr;
             d_->bittorrent = nullptr;
@@ -462,6 +482,7 @@ void P2PTransport::stop()
     d_->reconnect = nullptr;
     d_->pex = nullptr;
     d_->holePunch = nullptr;
+    d_->relay = nullptr;
     d_->fileTransfer = nullptr;
     d_->storage = nullptr;
     d_->bittorrent = nullptr;
@@ -492,6 +513,27 @@ void P2PTransport::setHolePunchEnabled(bool enabled)
 {
     // Same deal as port mapping: a preference read when the subsystems are built.
     holePunchEnabled_ = enabled;
+}
+
+void P2PTransport::setRelayEnabled(bool enabled)
+{
+    // Same deal again: takes effect on the next (re)start.
+    relayEnabled_ = enabled;
+}
+
+void P2PTransport::setRelayServeEnabled(bool enabled)
+{
+    relayServeEnabled_ = enabled;
+}
+
+int P2PTransport::relayedPeerCount() const
+{
+    return d_->relay ? static_cast<int>(d_->relay->circuits()) : 0;
+}
+
+int P2PTransport::carriedCircuitCount() const
+{
+    return d_->relay ? static_cast<int>(d_->relay->carried_circuits()) : 0;
 }
 
 // =========================================================================

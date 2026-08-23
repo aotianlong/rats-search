@@ -109,6 +109,14 @@ public:
     // peers' rendezvous), the fallback for networks where port mapping fails.
     bool holePunchEnabled() const;
 
+    // Config-file only, same shape: the rung below punching — reach a peer
+    // through a third node both ends already hold when no punch can land.
+    bool relayEnabled() const;
+
+    // Config-file only: carry OTHER peers' circuits. Off by default — unlike a
+    // hole-punch rendezvous, this spends real uplink on somebody else's traffic.
+    bool relayServeEnabled() const;
+
     // =========================================================================
     // Spider Settings
     // =========================================================================

@@ -176,6 +176,8 @@ void Application::applyConfig()
     d_->peers->setDatabaseSharing(shareDatabase);
     d_->transport->setPortMappingEnabled(c->upnpEnabled());
     d_->transport->setHolePunchEnabled(c->holePunchEnabled());
+    d_->transport->setRelayEnabled(c->relayEnabled());
+    d_->transport->setRelayServeEnabled(c->relayServeEnabled());
     d_->crawler->setWalkInterval(c->spiderWalkInterval());
     d_->searchHistory->setEnabled(c->searchHistoryEnabled());
 

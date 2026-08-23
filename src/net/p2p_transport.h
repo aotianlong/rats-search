@@ -19,6 +19,7 @@ class StorageManager;
 class Bittorrent;
 class PeerExchange;
 class HolePunch;
+class Relay;
 class FileTransfer;
 } // namespace librats
 
@@ -46,10 +47,19 @@ public:
 
     void setPortMappingEnabled(bool enabled);
     void setHolePunchEnabled(bool enabled);
+    // Reach peers through a third node when no punch can land, and (separately)
+    // carry other peers' circuits — the latter spends our uplink, so it is opted
+    // into rather than assumed.
+    void setRelayEnabled(bool enabled);
+    void setRelayServeEnabled(bool enabled);
 
     // Peers (generic — identity and count only, no application stats)
     int peerCount() const;
     QString ourPeerId() const;
+    // Peers we reach through a relay, and circuits we carry for others. Both 0
+    // when relaying is off or the node is down.
+    int relayedPeerCount() const;
+    int carriedCircuitCount() const;
     size_t dhtNodeCount() const;
     bool isDhtRunning() const;
 
@@ -111,6 +121,8 @@ private:
     // takes effect on the next (re)start.
     bool portMappingEnabled_ = true;
     bool holePunchEnabled_ = true;
+    bool relayEnabled_ = true;
+    bool relayServeEnabled_ = false;
 };
 
 } // namespace rats::net

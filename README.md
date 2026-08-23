@@ -193,6 +193,8 @@ After first launch, a configuration file `rats.json` will be created in the data
 | `indexer` | Enable/disable DHT indexer |
 | `upnp` | Enable/disable UPnP/NAT-PMP port mapping (config-file only) |
 | `holePunch` | Enable/disable NAT hole punching, the fallback for networks where port mapping fails; also relays other peers' rendezvous (config-file only) |
+| `relay` | Enable/disable relayed circuits — reaching a peer through a third node both ends already hold, the fallback for peers no punch can reach (config-file only) |
+| `relayServe` | Carry *other* peers' relayed circuits. Off by default: it spends real uplink on somebody else's traffic (config-file only) |
 
 ## API
 
