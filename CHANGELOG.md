@@ -2,6 +2,33 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.2.7](https://github.com/DEgITx/rats-search/compare/v2.2.6...v2.2.7) (2026-08-23)
+
+
+### 📚 Documentation
+
+
+- Update CHANGELOG.md for v2.2.6([aa756bd](https://github.com/DEgITx/rats-search/commit/aa756bd7cf77e087eb3c04119a82fbc7035021ec)) by @github-actions[bot]
+
+
+### 🚀 Features
+
+
+- **relay:** Relay usage feature([590cbaf](https://github.com/DEgITx/rats-search/commit/590cbaf323d35dbc11b5364f207fcefc82d085cd)) by @DEgITx
+
+
+
+
+### 👥 Contributors
+
+
+
+- [@DEgITx](https://github.com/DEgITx) — 1 commit
+
+
+- [@github-actions[bot]](https://github.com/github-actions[bot]) — 1 commit
+
+
 ## [2.2.6](https://github.com/DEgITx/rats-search/compare/v2.2.5...v2.2.6) (2026-08-22)
 
 
