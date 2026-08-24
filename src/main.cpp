@@ -16,6 +16,7 @@
 #include "bootstrap/legacymigration.h"
 #include "bootstrap/single_instance.h"
 #include "bootstrap/startupinfo.h"
+#include "common/logging.h"
 #include "librats/util/logger.h"
 #include "mainwindow.h"
 #include "version.h"
@@ -146,8 +147,10 @@ static void configureLogging(const QString& dataDir)
     auto& logger = librats::Logger::getInstance();
     const QString logFilePath = dataDir + QStringLiteral("/rats-search.log");
     logger.set_log_file_path(logFilePath.toStdString());
-    logger.set_log_rotation_size(0);
-    logger.set_log_retention_count(2);
+    // Bounded from the first line on: config lives inside the data directory and
+    // is not loaded yet, so start on the default budget. Application::applyConfig()
+    // re-applies the stored logMaxSizeMb moments later, and on every later change.
+    rats::common::applyLogSizeBudget(rats::common::kDefaultLogMaxSizeMb);
     logger.set_rotate_on_startup(true); // must precede set_file_logging_enabled()
     logger.set_file_logging_enabled(true);
 #ifdef NDEBUG

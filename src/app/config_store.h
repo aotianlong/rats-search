@@ -200,6 +200,17 @@ public:
     void setAgreementAccepted(bool accepted);
 
     // =========================================================================
+    // Logging
+    // =========================================================================
+
+    // Total disk budget for rats-search.log and its rotated archives, in MB.
+    // Applied through common::applyLogSizeBudget() from Application::applyConfig(),
+    // so a change takes effect on the running logger without a restart. Clamped
+    // to [common::kMinLogMaxSizeMb, common::kMaxLogMaxSizeMb].
+    int logMaxSizeMb() const;
+    void setLogMaxSizeMb(int megabytes);
+
+    // =========================================================================
     // Generic Access (for API)
     // =========================================================================
 

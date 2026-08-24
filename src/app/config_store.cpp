@@ -1,5 +1,7 @@
 #include "app/config_store.h"
 
+#include "common/logging.h"
+
 #include <QDebug>
 #include <QDir>
 #include <QFile>
@@ -21,6 +23,9 @@ QVariant clampToRange(const QString& key, const QVariant& value)
 {
     if (key == QLatin1String("p2pConnections")) {
         return qBound(kMinP2pConnections, value.toInt(), kMaxP2pConnections);
+    }
+    if (key == QLatin1String("logMaxSizeMb")) {
+        return qBound(common::kMinLogMaxSizeMb, value.toInt(), common::kMaxLogMaxSizeMb);
     }
     return value;
 }
@@ -75,7 +80,10 @@ void ConfigStore::setDefaults()
         { "checkUpdatesOnStartup", true },
 
         // Legal
-        { "agreementAccepted", false }
+        { "agreementAccepted", false },
+
+        // Logging
+        { "logMaxSizeMb", common::kDefaultLogMaxSizeMb }
     };
 }
 
@@ -144,6 +152,8 @@ void ConfigStore::validateAndClamp()
 {
     config_["p2pConnections"]
         = QJsonValue::fromVariant(clampToRange("p2pConnections", config_["p2pConnections"].toInt()));
+    config_["logMaxSizeMb"] = QJsonValue::fromVariant(
+        clampToRange("logMaxSizeMb", config_["logMaxSizeMb"].toInt(common::kDefaultLogMaxSizeMb)));
 
     // Replication needs the replication server. The typed setters keep this
     // invariant on writes; this repairs a config file edited by hand.
@@ -500,6 +510,19 @@ void ConfigStore::setAgreementAccepted(bool accepted)
     if (setValue("agreementAccepted", accepted)) {
         save(); // Immediately persist agreement acceptance
     }
+}
+
+// ============================================================================
+// Logging
+// ============================================================================
+
+int ConfigStore::logMaxSizeMb() const
+{
+    return config_["logMaxSizeMb"].toInt(common::kDefaultLogMaxSizeMb);
+}
+void ConfigStore::setLogMaxSizeMb(int megabytes)
+{
+    setValue("logMaxSizeMb", megabytes);
 }
 
 // ============================================================================

@@ -4,6 +4,7 @@
 #include "app/favorites_store.h"
 #include "app/search_history_store.h"
 #include "app/translation_manager.h"
+#include "common/logging.h"
 #include "data/database.h"
 #include "data/feed_repository.h"
 #include "data/manticore.h"
@@ -179,6 +180,9 @@ void Application::applyConfig()
     d_->transport->setRelayEnabled(c->relayEnabled());
     d_->transport->setRelayServeEnabled(c->relayServeEnabled());
     d_->crawler->setWalkInterval(c->spiderWalkInterval());
+    // Re-derives the rotation threshold, so lowering the budget starts capping
+    // the current file immediately instead of at the next launch.
+    common::applyLogSizeBudget(c->logMaxSizeMb());
     d_->searchHistory->setEnabled(c->searchHistoryEnabled());
 
     // Reflect runtime toggles of the crawler and replication. Only act once the

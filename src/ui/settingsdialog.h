@@ -25,7 +25,7 @@ class Application;
  * - Network: ports, P2P connections, replication, REST API
  * - Indexer: DHT indexer, trackers, spider performance
  * - Filters: name/regex, size, content type filters
- * - Storage: download path, data directory, database cleanup
+ * - Storage: download path, data directory, log size, database cleanup
  */
 class SettingsDialog : public QDialog {
     Q_OBJECT
@@ -135,6 +135,9 @@ private:
 
     // Downloads
     QLineEdit* downloadPathEdit_;
+
+    // Logging
+    QSpinBox* logMaxSizeSpin_;
 };
 
 #endif // SETTINGSDIALOG_H

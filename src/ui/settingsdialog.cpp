@@ -4,11 +4,13 @@
 #include "app/search_history_store.h"
 #include "app/translation_manager.h"
 #include "autostartmanager.h"
+#include "common/logging.h"
 #include "rest/api_router.h"
 #include <QApplication>
 
 #include <QApplication>
 #include <QDialogButtonBox>
+#include <QDir>
 #include <QEvent>
 #include <QFileDialog>
 #include <QFormLayout>
@@ -522,6 +524,29 @@ QWidget* SettingsDialog::createStorageTab()
 
     tabLayout->addWidget(dbGroup);
 
+    // --- Logging ---
+    QGroupBox* logGroup = new QGroupBox(tr("Logging"));
+    QFormLayout* logLayout = new QFormLayout(logGroup);
+    logLayout->setSpacing(10);
+
+    logMaxSizeSpin_ = new QSpinBox();
+    logMaxSizeSpin_->setRange(rats::common::kMinLogMaxSizeMb, rats::common::kMaxLogMaxSizeMb);
+    logMaxSizeSpin_->setSingleStep(10);
+    logMaxSizeSpin_->setSuffix(tr(" MB"));
+    logMaxSizeSpin_->setToolTip(tr("Total disk space used by the log file and its rotated copies"));
+    logLayout->addRow(tr("Maximum log size:"), logMaxSizeSpin_);
+
+    QLabel* logHint = new QLabel(
+        tr("* Shared by %1 and its rotated copies (.1 - .%2). Once the limit is reached the oldest "
+           "entries are dropped. Applies immediately.")
+            .arg(QDir::toNativeSeparators(dataDirectory_ + QStringLiteral("/rats-search.log")))
+            .arg(rats::common::kLogRetentionCount));
+    logHint->setObjectName("hintLabel");
+    logHint->setWordWrap(true);
+    logLayout->addRow(logHint);
+
+    tabLayout->addWidget(logGroup);
+
     // --- Database Cleanup ---
     QGroupBox* cleanupBox = new QGroupBox(tr("Database Cleanup"));
     QVBoxLayout* cleanupLayout = new QVBoxLayout(cleanupBox);
@@ -639,6 +664,7 @@ void SettingsDialog::loadSettings()
 
     // Storage
     downloadPathEdit_->setText(config_->downloadPath());
+    logMaxSizeSpin_->setValue(config_->logMaxSizeMb());
 
     // Database - QSettings is the source of truth for the data directory (it has
     // to be readable before rats.json, which lives inside it, can be loaded).
@@ -707,6 +733,8 @@ void SettingsDialog::saveSettings()
     config_->setFiltersSizeMax(static_cast<qint64>(sizeMaxSpin_->value()) * 1024 * 1024);
 
     config_->setFiltersContentType(selectedContentTypes());
+
+    config_->setLogMaxSizeMb(logMaxSizeSpin_->value());
 
     // Save Download Path
     QString newDownloadPath = downloadPathEdit_->text();
