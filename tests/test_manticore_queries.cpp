@@ -16,6 +16,7 @@
 #include "data/database.h"
 #include "data/manticore.h"
 #include "data/query.h"
+#include "data/row_id.h"
 #include "data/torrent_repository.h"
 #include "domain/content.h"
 #include "domain/torrent.h"
@@ -49,6 +50,12 @@ private slots:
     void testRemove();
     void testSelectQueryAgainstLiveIndex();
     void testPageAfterIdWalksPastMaxMatches();
+    void testRowIdIsDerivedFromHash();
+    void testFilesRowSharesTheTorrentId();
+    void testReAddDoesNotDuplicateRow();
+    void testRowIdCollisionIsRefused();
+    void testMigrationReKeysLegacyRows();
+    void testUpdateAppliesAndKeepsSearchable();
 
 private:
     // Build a valid torrent with a distinct 40-hex hash derived from `n`.
@@ -300,6 +307,194 @@ void TestManticoreQueries::testPageAfterIdWalksPastMaxMatches()
     }
     QVERIFY2(seen >= kExtra, qPrintable(QString("swept %1 of >= %2 torrents").arg(seen).arg(kExtra)));
     QCOMPARE(static_cast<qint64>(seen), repo_->statistics().torrents);
+}
+
+// ---------------------------------------------------------------------------
+// Row ids derived from the infohash
+// ---------------------------------------------------------------------------
+
+void TestManticoreQueries::testRowIdIsDerivedFromHash()
+{
+    const Torrent t = makeTorrent(770001, "Derived Id Sample");
+    QVERIFY(repo_->add(t));
+    QVERIFY(waitForTorrent(t.hash));
+
+    const auto stored = repo_->get(t.hash);
+    QVERIFY(stored.has_value());
+    // The row id is not a counter value: it is the hash, and a peer computing it
+    // from the same hash must arrive at the same number.
+    QCOMPARE(stored->id, rats::data::rowIdFromHash(t.hash));
+}
+
+void TestManticoreQueries::testFilesRowSharesTheTorrentId()
+{
+    Torrent t = makeTorrent(770002, "Shared Id Sample");
+    t.fileList = { File { "shared/one.mkv", 111 }, File { "shared/two.mkv", 222 } };
+    t.files = t.fileList.size();
+    QVERIFY(repo_->add(t));
+    QVERIFY(waitForTorrent(t.hash));
+
+    // The files row carrying the torrent's own id is what turns the export join
+    // into a docid lookup, so assert the id itself rather than just the contents.
+    const qint64 expected = rats::data::rowIdFromHash(t.hash);
+    const auto rows = db_->query(QStringLiteral("SELECT id FROM files WHERE id = %1").arg(expected));
+    QCOMPARE(rows.size(), 1);
+
+    const QVector<File> files = repo_->filesOf(t.hash);
+    QCOMPARE(files.size(), 2);
+    QCOMPARE(files.at(0).path, QString("shared/one.mkv"));
+}
+
+void TestManticoreQueries::testReAddDoesNotDuplicateRow()
+{
+    // With a derived id, adding the same torrent twice targets one row, and the
+    // second add leaves the stored copy alone. Under the old counter the same
+    // sequence produced two rows carrying one hash.
+    Torrent t = makeTorrent(770003, "Duplicate Guard");
+    QVERIFY(repo_->add(t));
+    QVERIFY(waitForTorrent(t.hash));
+
+    t.name = "Duplicate Guard Reindexed";
+    QVERIFY(repo_->add(t));
+
+    const auto rows
+        = db_->query(QStringLiteral("SELECT id FROM torrents WHERE id = %1").arg(rats::data::rowIdFromHash(t.hash)));
+    QCOMPARE(rows.size(), 1);
+    QCOMPARE(repo_->get(t.hash)->name, QString("Duplicate Guard"));
+}
+
+void TestManticoreQueries::testRowIdCollisionIsRefused()
+{
+    // Two hashes that agree on their first 64 bits and differ afterwards map to
+    // one row. The second one must be refused, never stored over the first.
+    const QString shared = QStringLiteral("beefbeefbeefbeef");
+    Torrent first = makeTorrent(1, "Collision First");
+    first.hash = shared + QString(24, QLatin1Char('1'));
+    Torrent second = makeTorrent(2, "Collision Second");
+    second.hash = shared + QString(24, QLatin1Char('2'));
+    QCOMPARE(rats::data::rowIdFromHash(first.hash), rats::data::rowIdFromHash(second.hash));
+
+    QVERIFY(repo_->add(first));
+    QVERIFY(waitForTorrent(first.hash));
+
+    QVERIFY2(!repo_->add(second), "a torrent whose row id belongs to another must be refused");
+
+    // The original survives untouched, and the impostor is not findable.
+    const auto stored = repo_->get(first.hash);
+    QVERIFY(stored.has_value());
+    QCOMPARE(stored->name, QString("Collision First"));
+    QVERIFY(!repo_->get(second.hash).has_value());
+    QVERIFY(!repo_->exists(second.hash));
+
+    // Batch lookups must reach the same verdict, and report which hash lost.
+    QSet<QString> collided;
+    const auto found = repo_->getMany({ first.hash, second.hash }, &collided);
+    QVERIFY(found.contains(first.hash));
+    QVERIFY(!found.contains(second.hash));
+    QVERIFY(collided.contains(second.hash));
+}
+
+void TestManticoreQueries::testMigrationReKeysLegacyRows()
+{
+    // Write rows the way the pre-migration code did: a small sequential id that
+    // has nothing to do with the hash. The repository can no longer produce these,
+    // so they go in through the raw database layer.
+    struct Legacy {
+        qint64 id;
+        QString hash;
+        QString name;
+    };
+    const QVector<Legacy> legacy {
+        { 41, QStringLiteral("11110000") + QString(32, QLatin1Char('d')), QStringLiteral("Legacy One") },
+        { 42, QStringLiteral("22220000") + QString(32, QLatin1Char('d')), QStringLiteral("Legacy Two") },
+    };
+
+    for (const Legacy& row : legacy) {
+        QVERIFY(db_->insert("torrents",
+            QVariantMap { { "id", row.id }, { "hash", row.hash }, { "name", row.name }, { "nameIndex", row.name },
+                { "size", 4096 }, { "files", 1 }, { "piecelength", 262144 },
+                { "added", QDateTime::currentSecsSinceEpoch() }, { "ipv4", "10.0.0.1" }, { "port", 6881 },
+                { "contentType", 1 }, { "contentCategory", 0 }, { "seeders", 1 }, { "leechers", 1 }, { "completed", 1 },
+                { "trackersChecked", 0 }, { "good", 0 }, { "bad", 0 } }));
+        QVERIFY(db_->insert("files",
+            QVariantMap { { "id", row.id }, { "hash", row.hash }, { "path", "legacy/file.bin" }, { "size", "4096" } }));
+    }
+
+    // A legacy row is invisible to a lookup precisely because its id is wrong —
+    // that is what the migration exists to fix.
+    QVERIFY(!repo_->exists(legacy.first().hash));
+
+    for (const QString& table : { QStringLiteral("torrents"), QStringLiteral("files") }) {
+        qint64 cursor = 0;
+        for (;;) {
+            const auto page = repo_->migrateRowIdPage(table, cursor, 500);
+            // A failed page leaves the cursor where it was, so looping on
+            // `finished` alone would spin forever.
+            QVERIFY2(!page.failed, qPrintable("migration page failed on " + table));
+            if (page.finished)
+                break;
+        }
+    }
+
+    for (const Legacy& row : legacy) {
+        QVERIFY2(waitForTorrent(row.hash), qPrintable("not reachable after migration: " + row.name));
+        const auto stored = repo_->get(row.hash, /*includeFiles*/ true);
+        QVERIFY(stored.has_value());
+        QCOMPARE(stored->name, row.name);
+        // Re-keyed, and the full-text column survived the rewrite.
+        QCOMPARE(stored->id, rats::data::rowIdFromHash(row.hash));
+        QCOMPARE(stored->fileList.size(), 1);
+        QCOMPARE(stored->fileList.at(0).path, QString("legacy/file.bin"));
+        // The old row is gone rather than left behind as a duplicate.
+        QVERIFY(db_->query(QStringLiteral("SELECT id FROM torrents WHERE id = %1").arg(row.id)).isEmpty());
+    }
+
+    TorrentRepository::SearchQuery q;
+    q.text = "Legacy One";
+    q.limit = 10;
+    QVERIFY2(!repo_->searchTorrents(q).isEmpty(), "re-keyed row must still be findable by name");
+
+    // Running it again must be a no-op, not a second rewrite.
+    qint64 cursor = 0;
+    int rewritten = 0;
+    for (;;) {
+        const auto page = repo_->migrateRowIdPage(QStringLiteral("torrents"), cursor, 500);
+        QVERIFY(!page.failed);
+        if (page.finished)
+            break;
+        rewritten += page.rewritten;
+    }
+    QCOMPARE(rewritten, 0);
+}
+
+void TestManticoreQueries::testUpdateAppliesAndKeepsSearchable()
+{
+    // update() used to be a partial UPDATE naming nameIndex, which Manticore
+    // rejects outright as a full-text field -- so nothing was written and vote
+    // merges vanished. Pin that it now actually applies.
+    Torrent t = makeTorrent(770004, "Updatable Sample zephyr");
+    t.good = 1;
+    QVERIFY(repo_->add(t));
+    QVERIFY(waitForTorrent(t.hash));
+
+    Torrent changed = *repo_->get(t.hash);
+    changed.good = 42;
+    changed.bad = 7;
+    changed.seeders = 999;
+    QVERIFY(repo_->update(changed));
+
+    const auto stored = repo_->get(t.hash);
+    QVERIFY(stored.has_value());
+    QCOMPARE(stored->good, 42);
+    QCOMPARE(stored->bad, 7);
+    QCOMPARE(stored->seeders, 999);
+    // Rewriting the row must not cost it its place in the full-text index, and
+    // must not leave a second row behind.
+    QCOMPARE(stored->id, rats::data::rowIdFromHash(t.hash));
+    TorrentRepository::SearchQuery q;
+    q.text = "zephyr";
+    q.limit = 10;
+    QCOMPARE(repo_->searchTorrents(q).size(), 1);
 }
 
 QTEST_MAIN(TestManticoreQueries)

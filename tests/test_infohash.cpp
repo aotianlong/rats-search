@@ -20,6 +20,7 @@ private slots:
     void testIsValid_tooLong();
     void testIsValid_nonHex();
     void testIsValid_nonHexBoundary();
+    void testIsValid_nonAsciiDigits();
     void testNormalize_lowercases();
     void testNormalize_trims();
     void testLengthConstant();
@@ -66,6 +67,16 @@ void TestInfohash::testIsValid_nonHexBoundary()
     QVERIFY(rats::infohash::isValid(QString(40, 'f')));
     // all digits is valid hex
     QVERIFY(rats::infohash::isValid(QString(40, '0')));
+}
+
+void TestInfohash::testIsValid_nonAsciiDigits()
+{
+    // QChar::isDigit() is true for every Unicode decimal digit, so validation
+    // used to accept these — and data::rowIdFromHash() then derived 0 from them,
+    // which Manticore reads as "assign me an id". Hex is ASCII only.
+    QVERIFY(!rats::infohash::isValid(QString(40, QChar(0x0660)))); // Arabic-Indic zero
+    QVERIFY(!rats::infohash::isValid(QString(39, QLatin1Char('a')) + QChar(0x0669)));
+    QVERIFY(!rats::infohash::isValid(QString(40, QChar(0x0966)))); // Devanagari zero
 }
 
 void TestInfohash::testNormalize_lowercases()

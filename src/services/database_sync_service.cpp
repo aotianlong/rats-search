@@ -374,6 +374,7 @@ void DatabaseSyncService::runImport(const QString& path, const ImportOptions& op
     qint64 inserted = 0;
     qint64 merged = 0;
     qint64 rejected = 0;
+    qint64 collided = 0;
 
     if (options.resume) {
         const qint64 offset = loadResumeOffset(path, fileSize);
@@ -400,6 +401,7 @@ void DatabaseSyncService::runImport(const QString& path, const ImportOptions& op
         inserted += result.inserted;
         merged += result.merged;
         rejected += result.rejected;
+        collided += result.collided;
 
         // The offset is only written after the batch it follows is committed, so
         // a resume can duplicate work but never skip it.
@@ -428,7 +430,7 @@ void DatabaseSyncService::runImport(const QString& path, const ImportOptions& op
 
     QMetaObject::invokeMethod(
         this,
-        [this, cancelled, failed, truncated, error, removeWhenDone, path, inserted, merged]() {
+        [this, cancelled, failed, truncated, error, removeWhenDone, path, inserted, merged, collided]() {
             if (removeWhenDone && !cancelled)
                 QFile::remove(path);
 
@@ -441,6 +443,12 @@ void DatabaseSyncService::runImport(const QString& path, const ImportOptions& op
                 return;
             }
             qInfo() << "[DatabaseSync] import finished:" << inserted << "new," << merged << "already known";
+            if (collided > 0) {
+                // A birthday collision on the 63-bit row id. Expected to be zero
+                // on any realistic index, so say so loudly if it is not.
+                qWarning() << "[DatabaseSync]" << collided
+                           << "torrents skipped: their row id belongs to a different torrent";
+            }
             if (truncated) {
                 // Everything read was still merged; say so rather than claiming a
                 // clean import.

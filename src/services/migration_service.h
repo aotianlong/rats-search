@@ -125,6 +125,11 @@ private:
     // Sync (blocking, must succeed).
     bool syncCleanupFeedStorage();
     bool syncUpdateWalkInterval();
+    // Re-key every row from the old sequential id to one derived from its
+    // infohash. Blocking on purpose: until it finishes, a lookup by hash cannot
+    // find the rows that still carry a counter id, so no service may run against
+    // a half-migrated table.
+    bool syncDeriveRowIds();
     // Async (background, resumable).
     void recategorizeTorrents();
     void removeUnknownTorrents();

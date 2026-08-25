@@ -5,6 +5,7 @@
 #include <QStringList>
 #include <QVariant>
 #include <QVariantList>
+#include <QVector>
 
 // SphinxQL query construction for Manticore.
 //
@@ -57,7 +58,11 @@ public:
     SelectQuery& columns(const QString& expr); // default "*"
     SelectQuery& matchAgainst(const QString& userQuery); // WHERE MATCH('escaped')
     SelectQuery& whereEq(const QString& column, const QVariant& value);
-    SelectQuery& whereIn(const QString& column, const QStringList& values);
+    // Numeric IN. qint64 cannot carry an injection, so the values are rendered
+    // directly — this is the form every hash lookup uses now that row ids are
+    // derived from the infohash (data/row_id.h), and it is the reason those
+    // lookups hit Manticore's docid index instead of scanning the table.
+    SelectQuery& whereInIds(const QString& column, const QVector<qint64>& values);
     SelectQuery& whereRaw(const QString& condition); // trusted numeric fragment
     SelectQuery& orderBy(const QString& column, bool descending);
     SelectQuery& limit(int offset, int count);

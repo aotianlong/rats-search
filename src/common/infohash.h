@@ -17,7 +17,14 @@ inline bool isValid(const QString& hash)
     if (hash.length() != kLength)
         return false;
     for (QChar c : hash) {
-        if (!c.isDigit() && !(c.toLower() >= 'a' && c.toLower() <= 'f'))
+        // ASCII hex only. QChar::isDigit() is true for every Unicode decimal
+        // digit — Arabic-Indic ٠١٢, Devanagari ०१२, and so on — so it used to
+        // accept 40 characters that no hex parser can read. data::rowIdFromHash()
+        // then derived 0 from them, which Manticore reads as "assign me an id":
+        // a row nothing could ever address by hash again.
+        const char16_t u = c.unicode();
+        const bool isHex = (u >= u'0' && u <= u'9') || (u >= u'a' && u <= u'f') || (u >= u'A' && u <= u'F');
+        if (!isHex)
             return false;
     }
     return true;

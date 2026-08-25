@@ -2,6 +2,7 @@
 
 #include "data/database.h"
 #include "data/query.h"
+#include "data/row_id.h"
 
 #include <QDateTime>
 #include <QJsonDocument>
@@ -33,15 +34,39 @@ QVector<File> parseFileBlob(const QString& pathBlob, const QString& sizeBlob)
         files.append(File { paths.at(i), i < sizes.size() ? sizes.at(i).toLongLong() : 0 });
     return files;
 }
+
+// Hashes reach us from the DHT, from peers and from dumps, and not all of those
+// agree on case. Row ids already ignore it (rowIdFromHash parses hex either
+// way), so the verification that guards against id collisions must too.
+bool sameHash(const QString& a, const QString& b)
+{
+    return !a.isEmpty() && a.compare(b, Qt::CaseInsensitive) == 0;
+}
+
+// Resolve a batch of hashes to row ids, keeping the reverse map so each returned
+// row can be checked against the hash that asked for it.
+QVector<qint64> idsFor(const QStringList& hashes, QHash<qint64, QString>& wantedByI)
+{
+    QVector<qint64> ids;
+    ids.reserve(hashes.size());
+    for (const QString& hash : hashes) {
+        const qint64 id = rowIdFromHash(hash);
+        if (id == 0)
+            continue;
+        // Two spellings of one hash collapse to one id; ask for it once.
+        if (!wantedByI.contains(id)) {
+            wantedByI.insert(id, hash);
+            ids.append(id);
+        }
+    }
+    return ids;
+}
 } // namespace
 
 TorrentRepository::TorrentRepository(Database* db, QObject* parent) : QObject(parent), db_(db) { }
 
 void TorrentRepository::primeFromDatabase()
 {
-    nextTorrentId_ = db_->maxId(kTorrents) + 1;
-    nextFilesId_ = db_->maxId(kFiles) + 1;
-
     const auto rows = db_->query(QStringLiteral("SELECT COUNT(*) AS cnt, SUM(files) AS numfiles, "
                                                 "SUM(size) AS totalsize FROM torrents"));
     if (!rows.isEmpty()) {
@@ -57,10 +82,41 @@ void TorrentRepository::primeFromDatabase()
 // CRUD
 // ---------------------------------------------------------------------------
 
+TorrentRepository::RowSlot TorrentRepository::resolve(const QString& hash, bool withRow)
+{
+    RowSlot slot;
+    slot.id = rowIdFromHash(hash);
+    if (slot.id == 0)
+        return slot;
+
+    // One docid lookup answers both questions a write has: is this torrent
+    // already stored, and is its slot claimed by a different one? `withRow`
+    // widens it to the whole row for callers that would otherwise follow up with
+    // a get() on the same id — the crawler's insert path asks every torrent this
+    // question, so the columns are only paid for when someone needs them.
+    const QString columns = withRow ? QStringLiteral("*") : QStringLiteral("hash");
+    const auto rows
+        = db_->query(QStringLiteral("SELECT %1 FROM torrents WHERE id = ? LIMIT 1").arg(columns), { slot.id });
+    if (rows.isEmpty())
+        return slot;
+
+    slot.taken = true;
+    if (!withRow) {
+        slot.ours = sameHash(rows.first().value(QStringLiteral("hash")).toString(), hash);
+        return slot;
+    }
+
+    Torrent stored = rowToTorrent(rows.first());
+    slot.ours = sameHash(stored.hash, hash);
+    if (slot.ours)
+        slot.stored = std::move(stored);
+    return slot;
+}
+
 QVariantMap TorrentRepository::torrentRow(const Torrent& t)
 {
     QVariantMap values;
-    values["id"] = static_cast<qlonglong>(nextTorrentId_++);
+    values["id"] = static_cast<qlonglong>(rowIdFromHash(t.hash));
     values["hash"] = t.hash;
     values["name"] = t.name;
     values["nameIndex"] = buildNameIndex(t);
@@ -78,7 +134,7 @@ QVariantMap TorrentRepository::torrentRow(const Torrent& t)
     values["trackersChecked"] = t.trackersChecked.isValid() ? t.trackersChecked.toSecsSinceEpoch() : 0;
     values["good"] = t.good;
     values["bad"] = t.bad;
-    // A multi-row INSERT takes its column list from the first row, so every row
+    // A multi-row write takes its column list from the first row, so every row
     // must carry the same keys — "info" is always present, empty object or not.
     values["info"] = t.info;
     return values;
@@ -96,18 +152,43 @@ QVariantMap TorrentRepository::filesRow(const QString& hash, const QVector<File>
     }
 
     QVariantMap values;
-    values["id"] = static_cast<qlonglong>(nextFilesId_++);
+    // Deliberately the same id as the torrent's row: it turns the export's
+    // "files of these 500 torrents" join into the same docid lookup, and makes
+    // replacing a file list a single REPLACE instead of a delete + insert that
+    // would hand the row a fresh id.
+    values["id"] = static_cast<qlonglong>(rowIdFromHash(hash));
     values["hash"] = hash;
     values["path"] = paths.join(QLatin1Char('\n'));
     values["size"] = sizes.join(QLatin1Char('\n'));
     return values;
 }
 
-bool TorrentRepository::add(const Torrent& t, bool skipExistsCheck)
+bool TorrentRepository::add(const Torrent& t)
 {
     if (!t.isValid())
         return false;
-    if (!skipExistsCheck && exists(t.hash)) {
+    return add(t, resolve(t.hash));
+}
+
+bool TorrentRepository::add(const Torrent& t, const RowSlot& slot)
+{
+    if (!t.isValid())
+        return false;
+
+    // A slot resolved for a different hash would send the write to a stranger's
+    // row, so it is refused rather than re-resolved: a caller passing the wrong
+    // one has a bug, and silently papering over it would hide it.
+    if (slot.id != rowIdFromHash(t.hash)) {
+        qWarning() << "[TorrentRepository] slot does not belong to" << t.hash << "- refusing to store";
+        return false;
+    }
+    if (slot.id == 0)
+        return false;
+    if (slot.collided()) {
+        qWarning() << "[TorrentRepository] row id collision, refusing to store" << t.hash;
+        return false;
+    }
+    if (slot.taken) {
         qInfo() << "[TorrentRepository] already present:" << t.hash;
         return true;
     }
@@ -116,7 +197,10 @@ bool TorrentRepository::add(const Torrent& t, bool skipExistsCheck)
     if (t.info.isEmpty())
         values.remove("info");
 
-    if (!db_->insert(kTorrents, values))
+    // REPLACE rather than INSERT: the id is derived, and Manticore rejects an
+    // INSERT onto an id that already exists. The slot check above proved it is
+    // free, so this only guards against a concurrent writer claiming it first.
+    if (!db_->replace(kTorrents, values))
         return false;
 
     if (!t.fileList.isEmpty())
@@ -134,22 +218,29 @@ bool TorrentRepository::update(const Torrent& t)
     if (!t.isValid())
         return false;
 
-    QVariantMap values;
-    values["name"] = t.name;
-    values["nameIndex"] = buildNameIndex(t); // keep the full-text column in sync with a renamed torrent
-    values["size"] = t.size;
-    values["files"] = t.files;
-    values["contentType"] = domain::toId(t.contentType);
-    values["contentCategory"] = domain::toId(t.contentCategory);
-    values["seeders"] = t.seeders;
-    values["leechers"] = t.leechers;
-    values["completed"] = t.completed;
-    values["good"] = t.good;
-    values["bad"] = t.bad;
-    if (!t.info.isEmpty())
-        values["info"] = t.info;
+    // Rewrite the whole row rather than SET the changed columns. Manticore
+    // refuses to UPDATE a full-text field, and refuses the *entire* statement
+    // when one is named — "attribute 'nameindex' can not be updated (full-text
+    // field)" — so the previous partial UPDATE, which had to name nameIndex to
+    // keep it in step with a renamed torrent, never applied anything at all: vote
+    // merges and rename were both silently dropped. A derived row id makes the
+    // honest fix trivial, since REPLACE addresses exactly this torrent's row.
+    //
+    // Every caller passes a Torrent it just read back with get(), so the row
+    // rebuilt here is complete rather than a partial overwrite.
+    const RowSlot slot = resolve(t.hash);
+    if (slot.id == 0)
+        return false;
+    if (slot.collided()) {
+        qWarning() << "[TorrentRepository] row id collision, refusing to update" << t.hash;
+        return false;
+    }
 
-    if (!db_->update(kTorrents, values, { { "hash", t.hash } }))
+    QVariantMap values = torrentRow(t);
+    if (t.info.isEmpty())
+        values.remove("info");
+
+    if (!db_->replace(kTorrents, values))
         return false;
     emit torrentUpdated(t.hash);
     return true;
@@ -159,14 +250,22 @@ bool TorrentRepository::remove(const QString& hash)
 {
     qint64 removedSize = 0;
     int removedFiles = 0;
-    const auto rows = db_->query(QStringLiteral("SELECT size, files FROM torrents WHERE hash = ?"), { hash });
+    const qint64 id = rowIdFromHash(hash);
+    if (id == 0)
+        return false;
+
+    // Verify the slot really holds this torrent before deleting it: on a 63-bit
+    // id collision the row belongs to somebody else.
+    const auto rows = db_->query(QStringLiteral("SELECT hash, size, files FROM torrents WHERE id = ?"), { id });
     if (!rows.isEmpty()) {
+        if (!sameHash(rows.first().value(QStringLiteral("hash")).toString(), hash))
+            return false;
         removedSize = rows.first().value(QStringLiteral("size")).toLongLong();
         removedFiles = rows.first().value(QStringLiteral("files")).toInt();
     }
 
-    db_->remove(kTorrents, { { "hash", hash } });
-    db_->remove(kFiles, { { "hash", hash } });
+    db_->remove(kTorrents, { { "id", id } });
+    db_->remove(kFiles, { { "id", id } });
 
     if (removedSize > 0 || removedFiles > 0) {
         stats_.torrents = qMax(0LL, stats_.torrents - 1);
@@ -179,16 +278,25 @@ bool TorrentRepository::remove(const QString& hash)
 
 bool TorrentRepository::exists(const QString& hash)
 {
-    return !db_->query(QStringLiteral("SELECT id FROM torrents WHERE hash = ? LIMIT 1"), { hash }).isEmpty();
+    const RowSlot slot = resolve(hash);
+    // A collided slot is "not present": the torrent is absent, it simply cannot
+    // be stored either.
+    return slot.taken && slot.ours;
 }
 
 std::optional<Torrent> TorrentRepository::get(const QString& hash, bool includeFiles)
 {
-    const auto rows = db_->query(QStringLiteral("SELECT * FROM torrents WHERE hash = ?"), { hash });
+    const qint64 id = rowIdFromHash(hash);
+    if (id == 0)
+        return std::nullopt;
+
+    const auto rows = db_->query(QStringLiteral("SELECT * FROM torrents WHERE id = ?"), { id });
     if (rows.isEmpty())
         return std::nullopt;
 
     Torrent t = rowToTorrent(rows.first());
+    if (!sameHash(t.hash, hash))
+        return std::nullopt; // id collision: this row is a different torrent
     if (includeFiles)
         t.fileList = filesOf(hash);
     return t;
@@ -243,8 +351,9 @@ QVector<SearchHit> TorrentRepository::searchTorrents(const SearchQuery& q)
     SelectQuery builder(kTorrents);
 
     static const QRegularExpression hexRe(QStringLiteral("^[0-9a-fA-F]{40}$"));
-    if (hexRe.match(q.text).hasMatch())
-        builder.whereEq(QStringLiteral("hash"), q.text.toLower());
+    const bool byHash = hexRe.match(q.text).hasMatch();
+    if (byHash)
+        builder.whereEq(QStringLiteral("id"), rowIdFromHash(q.text));
     else
         builder.matchAgainst(q.text);
 
@@ -268,6 +377,10 @@ QVector<SearchHit> TorrentRepository::searchTorrents(const SearchQuery& q)
     for (const auto& row : db_->query(builder.build())) {
         SearchHit hit;
         hit.torrent = rowToTorrent(row);
+        // An id lookup can land on a different torrent that shares the slot;
+        // a hash search must not answer with it.
+        if (byHash && !sameHash(hit.torrent.hash, q.text))
+            continue;
         hits.append(hit);
     }
     return hits;
@@ -304,11 +417,15 @@ QVector<SearchHit> TorrentRepository::searchFiles(const SearchQuery& q)
 
     // The content-type filter applies to the parent torrent, so it belongs on
     // this lookup rather than on the file-path MATCH above.
+    QHash<qint64, QString> wantedParents;
+    const QVector<qint64> parentIds = idsFor(orderedHashes, wantedParents);
     SelectQuery parents(kTorrents);
-    parents.whereIn(QStringLiteral("hash"), orderedHashes);
+    parents.whereInIds(QStringLiteral("id"), parentIds);
     parents.whereRaw(contentTypeFilter(q.contentType));
     for (const auto& row : db_->query(parents.build())) {
         Torrent t = rowToTorrent(row);
+        if (!sameHash(t.hash, wantedParents.value(t.id)))
+            continue; // id collision
         if (q.safeSearch && t.contentCategory == ContentCategory::XXX)
             continue;
 
@@ -385,31 +502,22 @@ QVector<Torrent> TorrentRepository::random(int limit, bool includeFiles)
     return results;
 }
 
-QSet<QString> TorrentRepository::existingHashes(const QStringList& hashes)
-{
-    QSet<QString> found;
-    if (hashes.isEmpty())
-        return found;
-
-    const QString sql = SelectQuery(kTorrents)
-                            .columns(QStringLiteral("hash"))
-                            .whereIn(QStringLiteral("hash"), hashes)
-                            .limit(0, hashes.size())
-                            .build();
-    for (const auto& row : db_->query(sql))
-        found.insert(row.value(QStringLiteral("hash")).toString());
-    return found;
-}
-
-QHash<QString, Torrent> TorrentRepository::getMany(const QStringList& hashes)
+QHash<QString, Torrent> TorrentRepository::getMany(const QStringList& hashes, QSet<QString>* collided)
 {
     QHash<QString, Torrent> result;
     if (hashes.isEmpty())
         return result;
 
-    const QString sql = SelectQuery(kTorrents).whereIn(QStringLiteral("hash"), hashes).limit(0, hashes.size()).build();
-    for (const Torrent& t : selectTorrents(sql))
-        result.insert(t.hash, t);
+    QHash<qint64, QString> wanted;
+    const QVector<qint64> ids = idsFor(hashes, wanted);
+    const QString sql = SelectQuery(kTorrents).whereInIds(QStringLiteral("id"), ids).limit(0, ids.size()).build();
+    for (const Torrent& t : selectTorrents(sql)) {
+        if (sameHash(t.hash, wanted.value(t.id))) {
+            result.insert(t.hash, t);
+        } else if (collided) {
+            *collided += wanted.value(t.id);
+        }
+    }
     return result;
 }
 
@@ -427,6 +535,16 @@ int TorrentRepository::addMany(const QVector<Torrent>& torrents)
     for (const Torrent& t : torrents) {
         if (!t.isValid())
             continue;
+        // The same refusal add() makes, and for the same reason: a hash that
+        // derives to id 0 is one Manticore auto-assigns an id for, producing a
+        // row no lookup by hash can reach while it still counts towards the
+        // statistics and is re-inserted on every import. Validation upstream
+        // should already have caught it — this is the guard on the write itself,
+        // which is where the invariant has to hold.
+        if (rowIdFromHash(t.hash) == 0) {
+            qWarning() << "[TorrentRepository] unusable hash, refusing to store" << t.hash;
+            continue;
+        }
         torrentRows.append(torrentRow(t));
         if (!t.fileList.isEmpty())
             fileRows.append(filesRow(t.hash, t.fileList));
@@ -436,10 +554,13 @@ int TorrentRepository::addMany(const QVector<Torrent>& torrents)
     if (torrentRows.isEmpty())
         return 0;
 
-    if (!db_->insertMany(kTorrents, torrentRows))
+    // REPLACE is mandatory here, not a preference: Manticore fails an entire
+    // multi-row INSERT on a single duplicate id, so one torrent repeated inside
+    // a dump batch would silently drop the other 499 rows with it.
+    if (!db_->replaceMany(kTorrents, torrentRows))
         return 0;
     if (!fileRows.isEmpty())
-        db_->insertMany(kFiles, fileRows);
+        db_->replaceMany(kFiles, fileRows);
 
     stats_.torrents += torrentRows.size();
     stats_.files += addedFiles;
@@ -463,9 +584,15 @@ QVector<Torrent> TorrentRepository::pageAfterId(qint64 afterId, int limit)
 
 QVector<File> TorrentRepository::filesOf(const QString& hash)
 {
-    const auto rows = db_->query(QStringLiteral("SELECT * FROM files WHERE hash = ?"), { hash });
+    const qint64 id = rowIdFromHash(hash);
+    if (id == 0)
+        return {};
+
+    const auto rows = db_->query(QStringLiteral("SELECT * FROM files WHERE id = ?"), { id });
     if (rows.isEmpty())
         return {};
+    if (!sameHash(rows.first().value(QStringLiteral("hash")).toString(), hash))
+        return {}; // id collision: these files belong to a different torrent
     return parseFileBlob(
         rows.first().value(QStringLiteral("path")).toString(), rows.first().value(QStringLiteral("size")).toString());
 }
@@ -476,11 +603,15 @@ QHash<QString, QVector<File>> TorrentRepository::filesOf(const QStringList& hash
     if (hashes.isEmpty())
         return result;
 
+    QHash<qint64, QString> wanted;
+    const QVector<qint64> ids = idsFor(hashes, wanted);
     // The LIMIT is not optional: Manticore returns 20 rows for a SELECT without
     // one, which would silently drop most of the batch.
-    const QString sql = SelectQuery(kFiles).whereIn(QStringLiteral("hash"), hashes).limit(0, hashes.size()).build();
+    const QString sql = SelectQuery(kFiles).whereInIds(QStringLiteral("id"), ids).limit(0, ids.size()).build();
     for (const auto& row : db_->query(sql)) {
         const QString hash = row.value(QStringLiteral("hash")).toString();
+        if (!sameHash(hash, wanted.value(row.value(QStringLiteral("id")).toLongLong())))
+            continue; // id collision
         result[hash]
             = parseFileBlob(row.value(QStringLiteral("path")).toString(), row.value(QStringLiteral("size")).toString());
     }
@@ -492,8 +623,10 @@ void TorrentRepository::saveFiles(const QString& hash, const QVector<File>& file
     if (files.isEmpty())
         return;
 
-    db_->remove(kFiles, { { "hash", hash } });
-    db_->insert(kFiles, filesRow(hash, files));
+    // One statement: the files row carries the torrent's own id, so replacing it
+    // in place is exact. The old delete + insert handed the row a fresh counter
+    // id every time a file list was backfilled.
+    db_->replace(kFiles, filesRow(hash, files));
 }
 
 // ---------------------------------------------------------------------------
@@ -502,10 +635,13 @@ void TorrentRepository::saveFiles(const QString& hash, const QVector<File>& file
 
 bool TorrentRepository::updateTrackerCounts(const QString& hash, int seeders, int leechers, int completed)
 {
+    const RowSlot slot = resolve(hash);
+    if (!slot.taken || !slot.ours)
+        return false;
     return db_->update(kTorrents,
         { { "seeders", seeders }, { "leechers", leechers }, { "completed", completed },
             { "trackersChecked", QDateTime::currentSecsSinceEpoch() } },
-        { { "hash", hash } });
+        { { "id", slot.id } });
 }
 
 bool TorrentRepository::updateFiles(const QString& hash, const QVector<File>& files)
@@ -513,14 +649,20 @@ bool TorrentRepository::updateFiles(const QString& hash, const QVector<File>& fi
     if (files.isEmpty())
         return false;
 
-    const auto rows = db_->query(QStringLiteral("SELECT files FROM torrents WHERE hash = ?"), { hash });
+    const qint64 id = rowIdFromHash(hash);
+    if (id == 0)
+        return false;
+
+    const auto rows = db_->query(QStringLiteral("SELECT hash, files FROM torrents WHERE id = ?"), { id });
     if (rows.isEmpty())
         return false;
+    if (!sameHash(rows.first().value(QStringLiteral("hash")).toString(), hash))
+        return false; // id collision
     const int oldCount = rows.first().value(QStringLiteral("files")).toInt();
 
-    saveFiles(hash, files); // replaces the file rows for this hash
+    saveFiles(hash, files); // replaces the file row for this hash
 
-    if (!db_->update(kTorrents, { { "files", files.size() } }, { { "hash", hash } }))
+    if (!db_->update(kTorrents, { { "files", files.size() } }, { { "id", id } }))
         return false;
 
     stats_.files += files.size() - oldCount;
@@ -531,17 +673,189 @@ bool TorrentRepository::updateFiles(const QString& hash, const QVector<File>& fi
 
 bool TorrentRepository::mergeInfo(const QString& hash, const QJsonObject& info)
 {
+    // get() already refuses a collided row, so reaching here means the slot is
+    // ours to write.
     const auto existing = get(hash);
-    QJsonObject merged = existing ? existing->info : QJsonObject();
+    if (!existing)
+        return false;
+
+    QJsonObject merged = existing->info;
     for (auto it = info.constBegin(); it != info.constEnd(); ++it)
         merged[it.key()] = it.value();
-    return db_->update(kTorrents, { { "info", merged } }, { { "hash", hash } });
+    return db_->update(kTorrents, { { "info", merged } }, { { "id", existing->id } });
 }
 
 bool TorrentRepository::updateClassification(const QString& hash, ContentType type, ContentCategory category)
 {
+    const RowSlot slot = resolve(hash);
+    if (!slot.taken || !slot.ours)
+        return false;
     return db_->update(kTorrents,
-        { { "contentType", domain::toId(type) }, { "contentCategory", domain::toId(category) } }, { { "hash", hash } });
+        { { "contentType", domain::toId(type) }, { "contentCategory", domain::toId(category) } },
+        { { "id", slot.id } });
+}
+
+// ---------------------------------------------------------------------------
+// Row-id migration
+// ---------------------------------------------------------------------------
+
+TorrentRepository::RowIdMigrationPage TorrentRepository::migrateRowIdPage(
+    const QString& table, qint64& cursor, int limit)
+{
+    RowIdMigrationPage page;
+    const bool isTorrents = (table == kTorrents);
+    // Where this page started. Every failure path below rewinds to it, so a
+    // page is either fully committed or fully retried — never skipped.
+    const qint64 startCursor = cursor;
+
+    bool readOk = false;
+    const auto rows = db_->query(
+        QStringLiteral("SELECT * FROM %1 WHERE id > %2 ORDER BY id ASC LIMIT %3").arg(table).arg(cursor).arg(limit), {},
+        &readOk);
+    if (!readOk) {
+        // A failed query returns no rows just like an exhausted table does.
+        // Telling the two apart is what keeps the migration from declaring
+        // itself done after one transient searchd error.
+        qWarning() << "[TorrentRepository] migration: failed to read" << table << "page past id" << startCursor;
+        page.failed = true;
+        return page;
+    }
+    if (rows.isEmpty()) {
+        page.finished = true;
+        return page;
+    }
+
+    // What each row wants to become. The row itself is rebuilt here, while the
+    // source columns are still in hand.
+    struct Move {
+        qint64 oldId = 0;
+        qint64 newId = 0;
+        QString hash;
+        QVariantMap row;
+    };
+    QVector<Move> moves;
+    QVector<qint64> doomed; // rows to delete outright
+
+    for (const auto& row : rows) {
+        const qint64 oldId = row.value(QStringLiteral("id")).toLongLong();
+        cursor = oldId;
+        ++page.scanned;
+
+        const QString hash = row.value(QStringLiteral("hash")).toString();
+        const qint64 newId = rowIdFromHash(hash);
+        if (newId == 0) {
+            qWarning() << "[TorrentRepository] migration: dropping" << table << "row" << oldId << "with unusable hash"
+                       << hash;
+            doomed.append(oldId);
+            ++page.dropped;
+            continue;
+        }
+        if (newId == oldId)
+            continue; // already migrated
+
+        Move move;
+        move.oldId = oldId;
+        move.newId = newId;
+        move.hash = hash;
+        if (isTorrents) {
+            // Round-trip through the domain type so the rewritten row is byte for
+            // byte what a normal insert would have produced — nameIndex rebuilt,
+            // info re-encoded as JSON rather than re-quoted as a string.
+            move.row = torrentRow(rowToTorrent(row));
+        } else {
+            // A files row is four plain columns; there is nothing to re-derive.
+            move.row = QVariantMap { { "id", static_cast<qlonglong>(newId) }, { "hash", hash },
+                { "path", row.value(QStringLiteral("path")) }, { "size", row.value(QStringLiteral("size")) } };
+        }
+        moves.append(move);
+    }
+
+    if (moves.isEmpty() && doomed.isEmpty())
+        return page;
+
+    // Refuse a move whose destination is already held by a different torrent.
+    QHash<qint64, QString> ownerById;
+    if (!moves.isEmpty()) {
+        QVector<qint64> targets;
+        targets.reserve(moves.size());
+        for (const Move& move : moves)
+            targets.append(move.newId);
+        const QString sql = SelectQuery(table)
+                                .columns(QStringLiteral("id, hash"))
+                                .whereInIds(QStringLiteral("id"), targets)
+                                .limit(0, targets.size())
+                                .build();
+        bool ownersOk = false;
+        const auto owners = db_->query(sql, {}, &ownersOk);
+        if (!ownersOk) {
+            // Without this lookup a taken destination reads as free, and the move
+            // would overwrite a stranger's row. Retry the page instead.
+            qWarning() << "[TorrentRepository] migration: failed to check" << table << "destinations past id"
+                       << startCursor;
+            cursor = startCursor;
+            page.failed = true;
+            return page;
+        }
+        for (const auto& row : owners) {
+            ownerById.insert(
+                row.value(QStringLiteral("id")).toLongLong(), row.value(QStringLiteral("hash")).toString());
+        }
+    }
+
+    QVector<QVariantMap> rewrites;
+    QSet<qint64> claimed; // destinations taken earlier in this same page
+    rewrites.reserve(moves.size());
+
+    for (const Move& move : moves) {
+        const QString owner = ownerById.value(move.newId);
+        if (!owner.isEmpty() && !sameHash(owner, move.hash)) {
+            qWarning() << "[TorrentRepository] migration: dropping" << table << "row" << move.oldId << "-"
+                       << "row id" << move.newId << "already belongs to a different torrent";
+            doomed.append(move.oldId);
+            ++page.dropped;
+            continue;
+        }
+        if (claimed.contains(move.newId)) {
+            // The same hash stored twice under the old counter ids. The first
+            // move carries it; this one is only a duplicate to retire.
+            doomed.append(move.oldId);
+            continue;
+        }
+        claimed.insert(move.newId);
+        rewrites.append(move.row);
+        doomed.append(move.oldId);
+        ++page.rewritten;
+    }
+
+    // Write the replacements before retiring the originals: interrupted here, the
+    // table holds the same torrent under two ids and the next pass re-does the
+    // move. Interrupted the other way round, the row would simply be gone.
+    if (!rewrites.isEmpty() && !db_->replaceMany(table, rewrites)) {
+        qWarning() << "[TorrentRepository] migration: failed to write" << rewrites.size() << table << "rows";
+        cursor = startCursor;
+        page.rewritten = 0;
+        page.failed = true;
+        return page;
+    }
+
+    if (!doomed.isEmpty()) {
+        QStringList ids;
+        ids.reserve(doomed.size());
+        for (qint64 id : doomed)
+            ids << QString::number(id);
+        if (!db_->execute(
+                QStringLiteral("DELETE FROM %1 WHERE id IN (%2)").arg(table, ids.join(QLatin1String(", "))))) {
+            // The replacements are in, the originals are not out: the table now
+            // holds some torrents twice. Rewinding re-runs the page, which skips
+            // the rows already carrying their derived id and retries this delete.
+            qWarning() << "[TorrentRepository] migration: failed to retire" << doomed.size() << table << "rows";
+            cursor = startCursor;
+            page.failed = true;
+            return page;
+        }
+    }
+
+    return page;
 }
 
 // ---------------------------------------------------------------------------

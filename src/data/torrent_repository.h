@@ -8,7 +8,6 @@
 #include <QSet>
 #include <QStringList>
 #include <QVector>
-#include <atomic>
 #include <optional>
 
 namespace rats::data {
@@ -46,24 +45,54 @@ public:
 
     explicit TorrentRepository(Database* db, QObject* parent = nullptr);
 
-    // Load id counters and statistics from the existing tables. Call once after
-    // the database is up.
+    // Load statistics from the existing tables. Call once after the database is
+    // up. There are no id counters to restore: a row id is derived from the
+    // infohash (data/row_id.h), not handed out sequentially.
     void primeFromDatabase();
 
+    // What a hash resolves to before a write touches the table.
+    struct RowSlot {
+        qint64 id = 0; // 0 when the hash is not a usable infohash
+        bool taken = false; // some row already occupies this id
+        bool ours = false; // ... and it carries this very hash
+        // The stored row, when it is ours and resolve() was asked for it.
+        std::optional<domain::Torrent> stored;
+        // taken && !ours is a 63-bit id collision: writing would overwrite an
+        // unrelated torrent, so every write path refuses it.
+        bool collided() const { return taken && !ours; }
+    };
+
+    // One docid lookup answering every question a write has: is this torrent
+    // already stored, and is its slot held by a different one? Pass `withRow` to
+    // get the stored copy back as well, and the result to add() so the write does
+    // not repeat the query — that is what the insert path does instead of a
+    // get() followed by an add() that looks the same row up again.
+    RowSlot resolve(const QString& hash, bool withRow = false);
+
     // CRUD ---------------------------------------------------------------------
-    // Pass skipExistsCheck when the caller has just proven the hash is absent
-    // (e.g. IndexingService's dedup get()), to avoid a redundant existence query.
-    bool add(const domain::Torrent& torrent, bool skipExistsCheck = false);
+    // Idempotent: a torrent that is already stored is left untouched and reports
+    // success. Use update() to rewrite one. Refuses a torrent whose row id
+    // belongs to a different hash.
+    bool add(const domain::Torrent& torrent);
+    // Same, reusing a slot the caller has already resolved. The slot must belong
+    // to this torrent's hash; one that does not is refused rather than trusted,
+    // so a stale or mismatched slot cannot turn into an overwrite.
+    bool add(const domain::Torrent& torrent, const RowSlot& slot);
     bool update(const domain::Torrent& torrent);
     bool remove(const QString& hash);
     bool exists(const QString& hash);
     std::optional<domain::Torrent> get(const QString& hash, bool includeFiles = false);
 
-    // Bulk variants used by the dump importer, where a per-row round trip would
+    // Bulk lookup used by the dump importer, where a per-row round trip would
     // dominate the runtime. `hashes` must not exceed Manticore's max_matches
     // (1000) — callers batch.
-    QSet<QString> existingHashes(const QStringList& hashes);
-    QHash<QString, domain::Torrent> getMany(const QStringList& hashes);
+    //
+    // Hashes are resolved to row ids and those are looked up, so a row that comes
+    // back under a hash the caller did not ask for is a 63-bit id collision and
+    // is dropped rather than reported as a hit. Pass `collided` to learn which of
+    // the requested hashes lost such a race: they cannot be stored (their slot
+    // belongs to another torrent) and must not be written.
+    QHash<QString, domain::Torrent> getMany(const QStringList& hashes, QSet<QString>* collided = nullptr);
     // Insert torrents already known to be absent, in as few statements as the
     // packet limit allows. Statistics move once for the whole batch instead of
     // once per row, so a million-row import does not emit a million signals.
@@ -99,6 +128,45 @@ public:
 
     Statistics statistics() const { return stats_; }
 
+    // Row-id migration ---------------------------------------------------------
+    // Outcome of one page of re-keying (see migrateRowIdPage).
+    struct RowIdMigrationPage {
+        int scanned = 0;
+        int rewritten = 0;
+        // Rows that cannot be re-keyed: an unusable hash, or a slot that already
+        // belongs to a different torrent. They are deleted — a row nothing can
+        // address by hash is worse than a missing one, because it still inflates
+        // the counters and is still served by sweeps.
+        int dropped = 0;
+        bool finished = false; // no rows left past the cursor
+        // The page could not be read or could not be committed. Distinct from
+        // `finished`: a failed query yields no rows either, and treating that as
+        // the end of the table would leave the sweep short while reporting
+        // success. `cursor` is left where the page started, so a retry re-reads
+        // exactly these rows.
+        bool failed = false;
+    };
+
+    // Re-key one page of `table` from the old sequential row ids to the ones
+    // derived from each row's infohash, advancing `cursor` past the rows it read.
+    //
+    // Safe to interrupt and safe to re-run: a row is rewritten only when its id
+    // differs from the derived one, so a second pass over an already-migrated
+    // table rewrites nothing. Derived ids land far above the counter's range, so
+    // an ascending sweep meets every unmigrated row before it meets any rewritten
+    // one; the pass ends when the cursor runs off the end of the table.
+    //
+    // A page that fails to read or to commit comes back with `failed` set and the
+    // cursor untouched. The caller must stop there rather than move on: skipping
+    // a page would leave those rows under a counter id, where nothing can find
+    // them by hash again.
+    //
+    // Only MigrationService calls this. It lives here because re-keying a row
+    // means reading and rewriting it through exactly the same mapping a normal
+    // write uses — that mapping is this class's job and nothing else may
+    // reimplement it.
+    RowIdMigrationPage migrateRowIdPage(const QString& table, qint64& cursor, int limit);
+
 signals:
     void torrentUpdated(const QString& hash);
     void statisticsChanged(qint64 torrents, qint64 files, qint64 totalSize);
@@ -119,8 +187,6 @@ private:
     static QString contentTypeFilter(const QString& type);
 
     Database* db_;
-    std::atomic<qint64> nextTorrentId_ { 1 };
-    std::atomic<qint64> nextFilesId_ { 1 };
     Statistics stats_;
 };
 

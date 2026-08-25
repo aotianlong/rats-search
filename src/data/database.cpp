@@ -85,18 +85,39 @@ bool Database::execute(const QString& sql)
 
 bool Database::insert(const QString& table, const QVariantMap& values)
 {
+    return writeRow("INSERT", table, values);
+}
+
+bool Database::replace(const QString& table, const QVariantMap& values)
+{
+    return writeRow("REPLACE", table, values);
+}
+
+bool Database::insertMany(const QString& table, const QVector<QVariantMap>& rows)
+{
+    return writeRows("INSERT", table, rows);
+}
+
+bool Database::replaceMany(const QString& table, const QVector<QVariantMap>& rows)
+{
+    return writeRows("REPLACE", table, rows);
+}
+
+bool Database::writeRow(const char* verb, const QString& table, const QVariantMap& values)
+{
     QStringList columns;
     QStringList literals;
     for (auto it = values.constBegin(); it != values.constEnd(); ++it) {
         columns << it.key();
         literals << sql::formatValue(it.value());
     }
-    const QString stmt = QStringLiteral("INSERT INTO %1 (%2) VALUES (%3)")
-                             .arg(table, columns.join(QLatin1String(", ")), literals.join(QLatin1String(", ")));
-    return runWrite(stmt, "INSERT", table);
+    const QString stmt
+        = QStringLiteral("%1 INTO %2 (%3) VALUES (%4)")
+              .arg(QLatin1String(verb), table, columns.join(QLatin1String(", ")), literals.join(QLatin1String(", ")));
+    return runWrite(stmt, verb, table);
 }
 
-bool Database::insertMany(const QString& table, const QVector<QVariantMap>& rows)
+bool Database::writeRows(const char* verb, const QString& table, const QVector<QVariantMap>& rows)
 {
     if (rows.isEmpty())
         return true;
@@ -108,7 +129,7 @@ bool Database::insertMany(const QString& table, const QVector<QVariantMap>& rows
         columns << it.key();
 
     const QString prefix
-        = QStringLiteral("INSERT INTO %1 (%2) VALUES ").arg(table, columns.join(QLatin1String(", ")));
+        = QStringLiteral("%1 INTO %2 (%3) VALUES ").arg(QLatin1String(verb), table, columns.join(QLatin1String(", ")));
 
     // searchd rejects anything over max_packet_size (8M by default), and a feed
     // row carries a whole torrent's JSON, so cap the statement well below that
@@ -122,7 +143,7 @@ bool Database::insertMany(const QString& table, const QVector<QVariantMap>& rows
     auto flushBatch = [&]() {
         if (pending == 0)
             return;
-        if (!runWrite(stmt, "INSERT", table))
+        if (!runWrite(stmt, verb, table))
             ok = false;
         stmt.clear();
         pending = 0;
@@ -173,12 +194,6 @@ bool Database::remove(const QString& table, const QVariantMap& where)
 
     const QString stmt = QStringLiteral("DELETE FROM %1 WHERE %2").arg(table, whereParts.join(QLatin1String(" AND ")));
     return runWrite(stmt, "DELETE", table);
-}
-
-qint64 Database::maxId(const QString& table)
-{
-    const Rows rows = query(QStringLiteral("SELECT MAX(id) AS maxid FROM %1").arg(table));
-    return rows.isEmpty() ? 0 : rows.first().value(QStringLiteral("maxid")).toLongLong();
 }
 
 qint64 Database::count(const QString& table, const QString& whereRaw)

@@ -28,28 +28,35 @@ IndexingService::Result IndexingService::insert(domain::Torrent torrent)
         return result;
     }
 
+    // One lookup serves both halves of this method: it answers the dedup question
+    // below and is handed to add() further down, so a torrent the crawler has
+    // never seen costs a single docid query instead of one here and another
+    // inside add().
+    const data::TorrentRepository::RowSlot slot = repository_->resolve(torrent.hash, /*withRow*/ true);
+
     // Already indexed? Merge what the incoming copy adds over the stored one
     // (e.g. from a peer) and return the stored entity.
-    if (auto existing = repository_->get(torrent.hash)) {
+    if (slot.stored) {
+        domain::Torrent existing = *slot.stored;
         result.success = true;
         result.alreadyExists = true;
-        result.torrent = *existing;
+        result.torrent = existing;
 
         // Backfill the file list when the stored copy has none but the incoming
         // one does. This heals a metadata-only row into a complete torrent
         // instead of leaving the two out of sync.
-        if (existing->files == 0 && !torrent.fileList.isEmpty()
-            && repository_->updateFiles(existing->hash, torrent.fileList)) {
-            existing->fileList = torrent.fileList;
-            existing->files = torrent.fileList.size();
-            result.torrent = *existing;
+        if (existing.files == 0 && !torrent.fileList.isEmpty()
+            && repository_->updateFiles(existing.hash, torrent.fileList)) {
+            existing.fileList = torrent.fileList;
+            existing.files = torrent.fileList.size();
+            result.torrent = existing;
         }
 
-        if (torrent.good > existing->good || torrent.bad > existing->bad) {
-            existing->good = qMax(existing->good, torrent.good);
-            existing->bad = qMax(existing->bad, torrent.bad);
-            repository_->update(*existing);
-            result.torrent = *existing;
+        if (torrent.good > existing.good || torrent.bad > existing.bad) {
+            existing.good = qMax(existing.good, torrent.good);
+            existing.bad = qMax(existing.bad, torrent.bad);
+            repository_->update(existing);
+            result.torrent = existing;
         }
         return result;
     }
@@ -65,10 +72,11 @@ IndexingService::Result IndexingService::insert(domain::Torrent torrent)
         }
     }
 
-    // The get() above already proved the hash is absent (single-threaded insert
-    // path), so skip the redundant existence query inside add().
-    if (!repository_->add(torrent, /*skipExistsCheck*/ true)) {
-        result.error = QStringLiteral("Database insert failed");
+    // The slot resolved above is still the one this hash maps to; add() only has
+    // to trust it, not look it up again.
+    if (!repository_->add(torrent, slot)) {
+        result.error = slot.collided() ? QStringLiteral("Row id belongs to a different torrent")
+                                       : QStringLiteral("Database insert failed");
         return result;
     }
 
@@ -115,12 +123,21 @@ IndexingService::BatchResult IndexingService::insertBatch(
     hashes.reserve(candidates.size());
     for (const domain::Torrent& t : candidates)
         hashes << t.hash;
-    const QHash<QString, domain::Torrent> existing = repository_->getMany(hashes);
+    QSet<QString> collided;
+    const QHash<QString, domain::Torrent> existing = repository_->getMany(hashes, &collided);
 
     QVector<domain::Torrent> fresh;
     fresh.reserve(candidates.size());
 
     for (domain::Torrent& incoming : candidates) {
+        // A torrent whose row id is held by a different one cannot be written
+        // without destroying that one, so it is dropped here rather than in the
+        // repository — the batch write below has no way to skip a single row.
+        if (collided.contains(incoming.hash)) {
+            ++result.collided;
+            continue;
+        }
+
         auto it = existing.constFind(incoming.hash);
         if (it == existing.constEnd()) {
             if (incoming.contentType == domain::ContentType::Unknown)
@@ -140,8 +157,16 @@ IndexingService::BatchResult IndexingService::insertBatch(
         // Same merge rules as insert(): heal a metadata-only row with the file
         // list the incoming copy carries, and keep the higher vote counts.
         domain::Torrent stored = *it;
-        if (stored.files == 0 && !incoming.fileList.isEmpty())
-            repository_->updateFiles(stored.hash, incoming.fileList);
+        // Keep the in-memory copy in step with what updateFiles() just wrote:
+        // update() below REPLACEs the whole row from this snapshot, so a stale
+        // files == 0 here would undo the backfill and leave the row claiming no
+        // files while the files table holds the list — which also re-triggers
+        // this branch (and its statistics delta) on every later import.
+        if (stored.files == 0 && !incoming.fileList.isEmpty()
+            && repository_->updateFiles(stored.hash, incoming.fileList)) {
+            stored.fileList = incoming.fileList;
+            stored.files = incoming.fileList.size();
+        }
 
         if (incoming.good > stored.good || incoming.bad > stored.bad) {
             stored.good = qMax(stored.good, incoming.good);
@@ -150,7 +175,7 @@ IndexingService::BatchResult IndexingService::insertBatch(
         }
     }
 
-    // 3. Everything genuinely new goes in as one multi-row INSERT.
+    // 3. Everything genuinely new goes in as one multi-row write.
     if (!fresh.isEmpty())
         result.inserted = repository_->addMany(fresh);
 

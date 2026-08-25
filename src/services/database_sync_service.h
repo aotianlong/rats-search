@@ -28,8 +28,8 @@ class IndexingService;
 // like a very fast peer: new torrents are indexed, known ones keep the local row
 // and only gain what the incoming copy adds (file list for a metadata-only row,
 // higher vote counts). Copying the Manticore data directory instead would be a
-// replacement, not a merge, and its row ids come from a local counter that two
-// databases both start at 1.
+// replacement, not a merge: it would overwrite the receiving index wholesale
+// instead of folding the two together.
 //
 // Export and import run on a worker thread (the data layer's connections are
 // per-thread) and report progress as JSON objects, so the GUI and the REST/WS

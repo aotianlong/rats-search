@@ -61,8 +61,8 @@ private slots:
     void testSelect_all();
     void testSelect_columns();
     void testSelect_whereEq();
-    void testSelect_whereIn();
-    void testSelect_whereIn_empty();
+    void testSelect_whereInIds();
+    void testSelect_whereInIds_empty();
     void testSelect_whereRaw();
     void testSelect_orderByLimit();
     void testSelect_matchAgainst();
@@ -311,16 +311,18 @@ void TestQuery::testSelect_whereEq()
         QString("SELECT * FROM torrents WHERE hash = 'abc'"));
 }
 
-void TestQuery::testSelect_whereIn()
+void TestQuery::testSelect_whereInIds()
 {
-    const QString sql = SelectQuery("torrents").whereIn("hash", { "a", "b" }).build();
-    QCOMPARE(sql, QString("SELECT * FROM torrents WHERE hash IN ('a', 'b')"));
+    // Row ids are rendered bare: they are qint64, so there is nothing to quote,
+    // and Manticore only reaches its docid index for an unquoted id.
+    const QString sql = SelectQuery("torrents").whereInIds("id", { 7, 4310523244133776513LL }).build();
+    QCOMPARE(sql, QString("SELECT * FROM torrents WHERE id IN (7, 4310523244133776513)"));
 }
 
-void TestQuery::testSelect_whereIn_empty()
+void TestQuery::testSelect_whereInIds_empty()
 {
     // Empty IN must match nothing, never produce invalid SQL.
-    QCOMPARE(SelectQuery("torrents").whereIn("hash", {}).build(), QString("SELECT * FROM torrents WHERE 1 = 0"));
+    QCOMPARE(SelectQuery("torrents").whereInIds("id", {}).build(), QString("SELECT * FROM torrents WHERE 1 = 0"));
 }
 
 void TestQuery::testSelect_whereRaw()

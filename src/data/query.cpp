@@ -132,17 +132,17 @@ SelectQuery& SelectQuery::whereEq(const QString& column, const QVariant& value)
     return *this;
 }
 
-SelectQuery& SelectQuery::whereIn(const QString& column, const QStringList& values)
+SelectQuery& SelectQuery::whereInIds(const QString& column, const QVector<qint64>& values)
 {
     if (values.isEmpty()) {
         conditions_ << QStringLiteral("1 = 0"); // empty IN matches nothing
         return *this;
     }
-    QStringList quoted;
-    quoted.reserve(values.size());
-    for (const QString& v : values)
-        quoted << sql::quote(v);
-    conditions_ << QStringLiteral("%1 IN (%2)").arg(column, quoted.join(QLatin1String(", ")));
+    QStringList rendered;
+    rendered.reserve(values.size());
+    for (qint64 v : values)
+        rendered << QString::number(v);
+    conditions_ << QStringLiteral("%1 IN (%2)").arg(column, rendered.join(QLatin1String(", ")));
     return *this;
 }
 

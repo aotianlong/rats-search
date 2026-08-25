@@ -36,6 +36,11 @@ public:
         int merged = 0; // already present; votes/file list may have been merged
         int rejected = 0; // refused by the filter policy
         int invalid = 0; // no valid hash or no name
+        // Row id already belongs to a different torrent. Row ids are derived
+        // from the infohash (data/row_id.h) and carry 63 of its bits, so this is
+        // a birthday collision — ~5e-6 across a 10M index. Storing such a
+        // torrent would overwrite an unrelated one, so it is skipped instead.
+        int collided = 0;
     };
 
     struct BatchOptions {
@@ -55,7 +60,7 @@ public:
 
     // Bulk insert for mass sources (database-dump import), same flow as insert()
     // but with the per-row round trips collapsed: one existence query and one
-    // multi-row INSERT per batch. `torrents` should be at most a few hundred
+    // multi-row write per batch. `torrents` should be at most a few hundred
     // entries — Manticore caps an IN() lookup at max_matches rows.
     //
     // It deliberately does NOT emit torrentIndexed: that signal starts a tracker
