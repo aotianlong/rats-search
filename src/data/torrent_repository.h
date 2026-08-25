@@ -96,7 +96,14 @@ public:
     // Insert torrents already known to be absent, in as few statements as the
     // packet limit allows. Statistics move once for the whole batch instead of
     // once per row, so a million-row import does not emit a million signals.
-    // Returns the number of rows written.
+    //
+    // Rows sharing a derived id are collapsed to the first: the batch write reports
+    // no per-row outcome, so a second row under one id would be dropped by Manticore
+    // while still counting towards the statistics here. Callers must still dedupe
+    // against the *index* (see getMany's `collided`) — this only guards the batch
+    // against itself, which is the one collision no prior lookup can see.
+    //
+    // Returns the number of rows written, which is what the statistics moved by.
     int addMany(const QVector<domain::Torrent>& torrents);
 
     // Search -------------------------------------------------------------------

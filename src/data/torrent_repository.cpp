@@ -555,6 +555,12 @@ int TorrentRepository::addMany(const QVector<Torrent>& torrents)
     torrentRows.reserve(torrents.size());
     qint64 addedFiles = 0;
     qint64 addedSize = 0;
+    // Which hash already claimed each row id in this batch. Callers dedupe against
+    // the *index* before getting here (insertBatch does it with one getMany), but
+    // nothing dedupes the batch against itself, and two rows sharing an id inside
+    // one REPLACE are resolved by Manticore keeping whichever it applies last.
+    QHash<qint64, QString> claimedBy;
+    claimedBy.reserve(torrents.size());
 
     for (const Torrent& t : torrents) {
         if (!t.isValid())
@@ -565,10 +571,29 @@ int TorrentRepository::addMany(const QVector<Torrent>& torrents)
         // statistics and is re-inserted on every import. Validation upstream
         // should already have caught it — this is the guard on the write itself,
         // which is where the invariant has to hold.
-        if (rowIdFromHash(t.hash) == 0) {
+        const qint64 id = rowIdFromHash(t.hash);
+        if (id == 0) {
             qWarning() << "[TorrentRepository] unusable hash, refusing to store" << t.hash;
             continue;
         }
+        // One id may leave this loop once. Both cases that reach here are silent
+        // corruption otherwise: the batch write has no per-row outcome, so the
+        // loser is neither stored nor reported, yet the statistics below count it.
+        const auto claimed = claimedBy.constFind(id);
+        if (claimed != claimedBy.constEnd()) {
+            // A hash repeated inside one dump batch is ordinary — same torrent,
+            // same row, nothing lost by writing it once.
+            if (!sameHash(*claimed, t.hash)) {
+                // A genuine 63-bit collision between two torrents that are both new
+                // to the index. Neither add() nor the caller's getMany() can catch
+                // this one: there is no stored row yet for either to compare against.
+                qWarning() << "[TorrentRepository] row id collision inside batch, refusing to store" << t.hash << "- id"
+                           << id << "already claimed by" << *claimed;
+            }
+            continue;
+        }
+        claimedBy.insert(id, t.hash);
+
         torrentRows.append(torrentRow(t));
         if (!t.fileList.isEmpty())
             fileRows.append(filesRow(t.hash, t.fileList));
@@ -578,9 +603,10 @@ int TorrentRepository::addMany(const QVector<Torrent>& torrents)
     if (torrentRows.isEmpty())
         return 0;
 
-    // REPLACE is mandatory here, not a preference: Manticore fails an entire
-    // multi-row INSERT on a single duplicate id, so one torrent repeated inside
-    // a dump batch would silently drop the other 499 rows with it.
+    // REPLACE rather than INSERT: Manticore fails an entire multi-row INSERT on a
+    // single duplicate id, and an id already held in the index by *this* torrent
+    // (a re-import, a retried batch) is a duplicate. The loop above is what keeps
+    // a batch from carrying two rows with one id into this statement.
     if (!db_->replaceMany(kTorrents, torrentRows))
         return 0;
     if (!fileRows.isEmpty())

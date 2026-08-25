@@ -54,6 +54,8 @@ private slots:
     void testFilesRowSharesTheTorrentId();
     void testReAddDoesNotDuplicateRow();
     void testRowIdCollisionIsRefused();
+    void testBatchRowIdCollisionIsRefused();
+    void testBatchDuplicateHashCollapsesToOneRow();
     void testMigrationReKeysLegacyRows();
     void testUpdateAppliesAndKeepsSearchable();
 
@@ -410,6 +412,61 @@ void TestManticoreQueries::testRowIdCollisionIsRefused()
     QVERIFY(found.contains(first.hash));
     QVERIFY(!found.contains(second.hash));
     QVERIFY(collided.contains(second.hash));
+}
+
+void TestManticoreQueries::testBatchRowIdCollisionIsRefused()
+{
+    // The collision add() catches needs a stored row to compare against. Two
+    // torrents that are both *new* to the index have none, so a batch write is the
+    // one path where nothing upstream can see the clash: getMany() finds neither,
+    // reports neither as collided, and both arrive here as "known absent".
+    const QString shared = QStringLiteral("cafecafecafecafe");
+    Torrent first = makeTorrent(1, "Batch Collision First");
+    first.hash = shared + QString(24, QLatin1Char('a'));
+    Torrent second = makeTorrent(2, "Batch Collision Second");
+    second.hash = shared + QString(24, QLatin1Char('b'));
+    QCOMPARE(rats::data::rowIdFromHash(first.hash), rats::data::rowIdFromHash(second.hash));
+    QVERIFY(!repo_->exists(first.hash));
+    QVERIFY(!repo_->exists(second.hash));
+
+    const auto before = repo_->statistics();
+    // One row written, not two: the count is the contract the statistics ride on.
+    QCOMPARE(repo_->addMany({ first, second }), 1);
+    QVERIFY(waitForTorrent(first.hash));
+
+    // The first one owns the row, whole and unmixed, and the loser stayed out.
+    const auto stored = repo_->get(first.hash);
+    QVERIFY(stored.has_value());
+    QCOMPARE(stored->name, QString("Batch Collision First"));
+    QVERIFY(!repo_->exists(second.hash));
+
+    // The statistics must describe the row that exists, not the rows handed in --
+    // an over-count here never heals, since nothing recomputes it until a restart.
+    QCOMPARE(repo_->statistics().torrents, before.torrents + 1);
+    QCOMPARE(repo_->statistics().files, before.files + first.files);
+    QCOMPARE(repo_->statistics().totalSize, before.totalSize + first.size);
+
+    // Re-priming from the index must agree with the counters kept in memory.
+    const auto inMemory = repo_->statistics();
+    repo_->primeFromDatabase();
+    QCOMPARE(repo_->statistics().torrents, inMemory.torrents);
+    QCOMPARE(repo_->statistics().totalSize, inMemory.totalSize);
+}
+
+// The same hash twice is not a collision: it is one torrent, and collapsing it is
+// ordinary dedupe rather than a refusal. Dump batches repeat hashes routinely.
+void TestManticoreQueries::testBatchDuplicateHashCollapsesToOneRow()
+{
+    Torrent t = makeTorrent(1, "Batch Duplicate");
+    const auto before = repo_->statistics();
+
+    QCOMPARE(repo_->addMany({ t, t }), 1);
+    QVERIFY(waitForTorrent(t.hash));
+
+    QCOMPARE(repo_->statistics().torrents, before.torrents + 1);
+    const auto stored = repo_->get(t.hash);
+    QVERIFY(stored.has_value());
+    QCOMPARE(stored->name, QString("Batch Duplicate"));
 }
 
 void TestManticoreQueries::testMigrationReKeysLegacyRows()
