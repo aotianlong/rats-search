@@ -453,6 +453,17 @@ QSqlDatabase Manticore::getDatabase() const
         // isOpen()==true, so the lazy `!isOpen() && !open()` guard never
         // re-opens it and queries fail hard instead of self-healing.
         db.setConnectOptions("MYSQL_OPT_RECONNECT=1");
+        // Not a precision preference — a data-loss guard. Manticore occasionally
+        // declares a text column with a floating-point MySQL column type (seen on
+        // the `files` table's stored-only `size`/`path` blobs, transiently: the
+        // same SELECT on the same connection reports QString once and double the
+        // next time). Under Qt's default LowPrecisionDouble the driver then runs
+        // toDouble() on "1900\n100", fails, and hands back an *invalid* QVariant
+        // — the text is destroyed inside the driver and the column reads as empty,
+        // which silently emptied file lists. HighPrecision returns the raw string
+        // for such columns instead; genuinely numeric ones still convert through
+        // QVariant::toLongLong()/toInt() at the call sites.
+        db.setNumericalPrecisionPolicy(QSql::HighPrecision);
     }
 
     return QSqlDatabase::database(threadConnName);

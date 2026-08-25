@@ -63,6 +63,9 @@ private:
         int n, const QString& name, ContentType type = ContentType::Video, qint64 size = 1024 * 1024, int seeders = 10);
     // Poll get() until the RT row is visible (RT attributes settle asynchronously).
     bool waitForTorrent(const QString& hash, int maxRetries = 50, int delayMs = 20);
+    // Same, for the files row. The two tables settle independently, so a
+    // torrent being visible says nothing about its file list yet.
+    bool waitForFiles(const QString& hash, int expected, int maxRetries = 50, int delayMs = 20);
 
     QTemporaryDir* tempDir_ = nullptr;
     Manticore* manticore_ = nullptr;
@@ -98,6 +101,19 @@ bool TestManticoreQueries::waitForTorrent(const QString& hash, int maxRetries, i
         QThread::msleep(delayMs);
     }
     return repo_->exists(hash);
+}
+
+bool TestManticoreQueries::waitForFiles(const QString& hash, int expected, int maxRetries, int delayMs)
+{
+    // exists() only asks the torrents table. A file list is a row in `files`,
+    // written by a separate statement and made visible by the RT index on its own
+    // schedule, so waiting for the torrent says nothing about its files yet.
+    for (int i = 0; i < maxRetries; ++i) {
+        if (repo_->filesOf(hash).size() == expected)
+            return true;
+        QThread::msleep(delayMs);
+    }
+    return repo_->filesOf(hash).size() == expected;
 }
 
 void TestManticoreQueries::initTestCase()
@@ -169,6 +185,7 @@ void TestManticoreQueries::testGetWithFiles()
     t.fileList.append(File { "folder/readme.txt", 100 });
     QVERIFY(repo_->add(t));
     QVERIFY(waitForTorrent(t.hash));
+    QVERIFY(waitForFiles(t.hash, 2));
 
     const auto got = repo_->get(t.hash, /*includeFiles=*/true);
     QVERIFY(got.has_value());
@@ -333,6 +350,7 @@ void TestManticoreQueries::testFilesRowSharesTheTorrentId()
     t.files = t.fileList.size();
     QVERIFY(repo_->add(t));
     QVERIFY(waitForTorrent(t.hash));
+    QVERIFY(waitForFiles(t.hash, 2));
 
     // The files row carrying the torrent's own id is what turns the export join
     // into a docid lookup, so assert the id itself rather than just the contents.
@@ -438,6 +456,7 @@ void TestManticoreQueries::testMigrationReKeysLegacyRows()
 
     for (const Legacy& row : legacy) {
         QVERIFY2(waitForTorrent(row.hash), qPrintable("not reachable after migration: " + row.name));
+        QVERIFY2(waitForFiles(row.hash, 1), qPrintable("files not reachable after migration: " + row.name));
         const auto stored = repo_->get(row.hash, /*includeFiles*/ true);
         QVERIFY(stored.has_value());
         QCOMPARE(stored->name, row.name);

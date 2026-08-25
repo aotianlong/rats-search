@@ -43,9 +43,26 @@ bool sameHash(const QString& a, const QString& b)
     return !a.isEmpty() && a.compare(b, Qt::CaseInsensitive) == 0;
 }
 
+// Whether a row that came back under some id belongs to one of the hashes that
+// asked for it. Distinct hashes can share an id, so this is a search over the
+// requesters rather than a comparison against a single one.
+bool wantedMatches(const QStringList& wanted, const QString& hash)
+{
+    for (const QString& w : wanted) {
+        if (sameHash(w, hash))
+            return true;
+    }
+    return false;
+}
+
 // Resolve a batch of hashes to row ids, keeping the reverse map so each returned
-// row can be checked against the hash that asked for it.
-QVector<qint64> idsFor(const QStringList& hashes, QHash<qint64, QString>& wantedByI)
+// row can be checked against the hashes that asked for it.
+//
+// The map holds a list per id, not a single hash: two different torrents whose
+// hashes agree on their first 63 bits ask for the same row, and keeping only the
+// first left the other one invisible — neither returned as found nor reported as
+// collided, which let a batch write REPLACE a stranger's row.
+QVector<qint64> idsFor(const QStringList& hashes, QHash<qint64, QStringList>& wantedById)
 {
     QVector<qint64> ids;
     ids.reserve(hashes.size());
@@ -53,11 +70,14 @@ QVector<qint64> idsFor(const QStringList& hashes, QHash<qint64, QString>& wanted
         const qint64 id = rowIdFromHash(hash);
         if (id == 0)
             continue;
-        // Two spellings of one hash collapse to one id; ask for it once.
-        if (!wantedByI.contains(id)) {
-            wantedByI.insert(id, hash);
+        QStringList& wanted = wantedById[id];
+        // Ask the database for the id once, however many hashes want it.
+        if (wanted.isEmpty())
             ids.append(id);
-        }
+        // Two spellings of one hash are one request; two hashes that merely
+        // collide are two, and both need an answer.
+        if (!wantedMatches(wanted, hash))
+            wanted.append(hash);
     }
     return ids;
 }
@@ -417,14 +437,14 @@ QVector<SearchHit> TorrentRepository::searchFiles(const SearchQuery& q)
 
     // The content-type filter applies to the parent torrent, so it belongs on
     // this lookup rather than on the file-path MATCH above.
-    QHash<qint64, QString> wantedParents;
+    QHash<qint64, QStringList> wantedParents;
     const QVector<qint64> parentIds = idsFor(orderedHashes, wantedParents);
     SelectQuery parents(kTorrents);
     parents.whereInIds(QStringLiteral("id"), parentIds);
     parents.whereRaw(contentTypeFilter(q.contentType));
     for (const auto& row : db_->query(parents.build())) {
         Torrent t = rowToTorrent(row);
-        if (!sameHash(t.hash, wantedParents.value(t.id)))
+        if (!wantedMatches(wantedParents.value(t.id), t.hash))
             continue; // id collision
         if (q.safeSearch && t.contentCategory == ContentCategory::XXX)
             continue;
@@ -508,14 +528,18 @@ QHash<QString, Torrent> TorrentRepository::getMany(const QStringList& hashes, QS
     if (hashes.isEmpty())
         return result;
 
-    QHash<qint64, QString> wanted;
+    QHash<qint64, QStringList> wanted;
     const QVector<qint64> ids = idsFor(hashes, wanted);
     const QString sql = SelectQuery(kTorrents).whereInIds(QStringLiteral("id"), ids).limit(0, ids.size()).build();
     for (const Torrent& t : selectTorrents(sql)) {
-        if (sameHash(t.hash, wanted.value(t.id))) {
-            result.insert(t.hash, t);
-        } else if (collided) {
-            *collided += wanted.value(t.id);
+        // One row answers every hash that asked for its id: the one it actually
+        // belongs to is found, and each of the others lost the slot and must be
+        // reported so the caller drops it instead of writing over this row.
+        for (const QString& want : wanted.value(t.id)) {
+            if (sameHash(t.hash, want))
+                result.insert(t.hash, t);
+            else if (collided)
+                *collided += want;
         }
     }
     return result;
@@ -603,14 +627,14 @@ QHash<QString, QVector<File>> TorrentRepository::filesOf(const QStringList& hash
     if (hashes.isEmpty())
         return result;
 
-    QHash<qint64, QString> wanted;
+    QHash<qint64, QStringList> wanted;
     const QVector<qint64> ids = idsFor(hashes, wanted);
     // The LIMIT is not optional: Manticore returns 20 rows for a SELECT without
     // one, which would silently drop most of the batch.
     const QString sql = SelectQuery(kFiles).whereInIds(QStringLiteral("id"), ids).limit(0, ids.size()).build();
     for (const auto& row : db_->query(sql)) {
         const QString hash = row.value(QStringLiteral("hash")).toString();
-        if (!sameHash(hash, wanted.value(row.value(QStringLiteral("id")).toLongLong())))
+        if (!wantedMatches(wanted.value(row.value(QStringLiteral("id")).toLongLong()), hash))
             continue; // id collision
         result[hash]
             = parseFileBlob(row.value(QStringLiteral("path")).toString(), row.value(QStringLiteral("size")).toString());
