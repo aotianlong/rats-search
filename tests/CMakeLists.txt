@@ -29,6 +29,7 @@ add_rats_test(test_search_history)
 add_rats_test(test_filter_policy)
 add_rats_test(test_manticore_maintenance)
 add_rats_test(test_database_dump)
+add_rats_test(test_voting_record)
 
 # The single-instance guard lives in src/bootstrap (executable-only, not in
 # ratscore), so its source is compiled straight into the test.
@@ -63,6 +64,7 @@ add_custom_target(check
             test_config_store test_filter_policy test_content_classifier test_manticore_queries
             test_manticore_maintenance
             test_database_dump
+            test_voting_record
             test_single_instance
     COMMENT "Running all tests..."
 )

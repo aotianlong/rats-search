@@ -52,6 +52,17 @@ public:
     // Whether we have already stored a vote for `hash`.
     bool hasVoted(const QString& hash) const;
 
+    /// The exact record a vote is replicated as.
+    ///
+    /// Public and free of any dependency so it can be pinned by a test, because
+    /// what goes in here is not a local matter: the store replicates to every
+    /// peer and re-sends its contents on every snapshot exchange, so a field
+    /// added here is paid for by the whole network for as long as the vote
+    /// exists. It once carried the entire torrent, file list and all, under a
+    /// "_torrent" key that nothing ever read — 24 KB per vote instead of 300
+    /// bytes. Keep this minimal, and keep the test that says so.
+    static QJsonObject voteRecord(const QString& hash, bool good);
+
 signals:
     // The aggregated counts for `hash` changed (after a local or remote vote).
     void votesUpdated(const QString& hash, int good, int bad);
@@ -60,7 +71,10 @@ private:
     // Count all vote records for `hash` across peers (from the distributed store).
     VoteCounts aggregate(const QString& hash) const;
 
-    bool storeVote(const QString& hash, bool good, const QJsonObject& torrentData);
+    /// Write this node's vote into the replicated store. The entry carries the
+    /// vote and nothing else: it is replicated to every peer and re-sent on every
+    /// snapshot, so anything in it is paid for network-wide, forever.
+    bool storeVote(const QString& hash, bool good);
     void onRecordStored(const StoredRecord& record, bool isRemote);
 
     P2PStore* store_;
