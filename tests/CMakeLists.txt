@@ -16,6 +16,15 @@ function(add_rats_test TEST_NAME)
     add_executable(${TEST_NAME} ${TEST_NAME}.cpp ${ARGN})
     target_link_libraries(${TEST_NAME} PRIVATE Qt6::Test ratscore)
     add_test(NAME ${TEST_NAME} COMMAND ${TEST_NAME})
+
+    # Qt's plain test logger writes to OutputDebugString instead of stdout when
+    # Windows reports no attached console -- which is the case on a CI runner and
+    # for anything reading the test through a pipe, ctest included. A failing test
+    # then appears as a bare "***Failed" with no FAIL line naming the function.
+    # Forcing the console assumption keeps the log on stdout, where ctest sees it.
+    if(WIN32)
+        set_tests_properties(${TEST_NAME} PROPERTIES ENVIRONMENT "QT_ASSUME_STDERR_HAS_CONSOLE=1")
+    endif()
 endfunction()
 
 # Unit tests (pure, no external process required)
