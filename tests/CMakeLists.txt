@@ -29,6 +29,7 @@ add_rats_test(test_search_history)
 add_rats_test(test_filter_policy)
 add_rats_test(test_manticore_maintenance)
 add_rats_test(test_database_dump)
+add_rats_test(test_database_snapshot)
 add_rats_test(test_voting_record)
 
 # The single-instance guard lives in src/bootstrap (executable-only, not in

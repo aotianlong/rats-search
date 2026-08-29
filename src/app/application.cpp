@@ -175,6 +175,12 @@ void Application::applyConfig()
     const bool shareDatabase = d_->options.shareDatabase.value_or(c->databaseSharing());
     d_->databaseSync->setSharingEnabled(shareDatabase);
     d_->peers->setDatabaseSharing(shareDatabase);
+    {
+        service::DatabaseSnapshot::Policy policy;
+        policy.maxAgeSecs = static_cast<qint64>(c->databaseSnapshotMaxAgeHours()) * 3600;
+        policy.maxDriftRatio = c->databaseSnapshotMaxDriftPercent() / 100.0;
+        d_->databaseSync->setSnapshotPolicy(policy);
+    }
     d_->transport->setPortMappingEnabled(c->upnpEnabled());
     d_->transport->setHolePunchEnabled(c->holePunchEnabled());
     d_->transport->setRelayEnabled(c->relayEnabled());

@@ -8,7 +8,10 @@
  * searchd executable to be discoverable via the standard import paths.
  */
 
+#include <QDir>
+#include <QFileInfo>
 #include <QJsonObject>
+#include <QSet>
 #include <QTemporaryDir>
 #include <QThread>
 #include <QtTest/QtTest>
@@ -20,6 +23,11 @@
 #include "data/torrent_repository.h"
 #include "domain/content.h"
 #include "domain/torrent.h"
+#include "services/database_dump.h"
+#include "services/database_exporter.h"
+#include "services/database_importer.h"
+#include "services/filter_policy.h"
+#include "services/indexing_service.h"
 
 using rats::data::Database;
 using rats::data::Manticore;
@@ -59,6 +67,11 @@ private slots:
     void testMigrationReKeysLegacyRows();
     void testUpdateAppliesAndKeepsSearchable();
 
+    void testExportImportRoundTrip();
+    void testImportIsAMergeNotADuplicate();
+    void testCancelledExportLeavesNoFile();
+    void testInterruptedImportResumesWhereItStopped();
+
 private:
     // Build a valid torrent with a distinct 40-hex hash derived from `n`.
     Torrent makeTorrent(
@@ -73,6 +86,8 @@ private:
     Manticore* manticore_ = nullptr;
     Database* db_ = nullptr;
     TorrentRepository* repo_ = nullptr;
+    rats::service::FilterPolicy* filter_ = nullptr;
+    rats::service::IndexingService* indexing_ = nullptr;
 };
 
 Torrent TestManticoreQueries::makeTorrent(int n, const QString& name, ContentType type, qint64 size, int seeders)
@@ -135,10 +150,17 @@ void TestManticoreQueries::initTestCase()
 
     repo_ = new TorrentRepository(db_);
     repo_->primeFromDatabase();
+
+    filter_ = new rats::service::FilterPolicy();
+    indexing_ = new rats::service::IndexingService(repo_, filter_);
 }
 
 void TestManticoreQueries::cleanupTestCase()
 {
+    delete indexing_;
+    indexing_ = nullptr;
+    delete filter_;
+    filter_ = nullptr;
     delete repo_;
     repo_ = nullptr;
     delete db_;
@@ -571,6 +593,169 @@ void TestManticoreQueries::testUpdateAppliesAndKeepsSearchable()
     q.text = "zephyr";
     q.limit = 10;
     QCOMPARE(repo_->searchTorrents(q).size(), 1);
+}
+
+// ============================================================================
+// Whole-database export / import
+// ============================================================================
+//
+// These drive the real DatabaseExporter and DatabaseImporter against a live
+// index, which is the only place the two halves meet: the exporter's keyset
+// sweep, its file-list join and its background serialiser on one side, the
+// importer's batched merge through IndexingService on the other.
+
+void TestManticoreQueries::testExportImportRoundTrip()
+{
+    // A distinct hash space, so the rows the other tests left behind cannot make
+    // this one pass by accident.
+    const int kCount = 1200; // several frames, and past max_matches
+    QSet<QString> written;
+    QVector<Torrent> batch;
+    for (int i = 0; i < kCount; ++i) {
+        Torrent t = makeTorrent(500000 + i, QString("roundtrip subject %1").arg(i));
+        t.fileList = { File { QString("dir/file-%1.mkv").arg(i), 4096 + i } };
+        t.files = 1;
+        written.insert(t.hash);
+        batch.append(t);
+    }
+    QCOMPARE(repo_->addMany(batch), kCount);
+    QVERIFY(waitForTorrent(batch.last().hash));
+    QVERIFY(waitForFiles(batch.first().hash, 1));
+
+    const QString path = QDir(tempDir_->path()).absoluteFilePath("roundtrip.ratsdb");
+    rats::service::DatabaseExporter exporter(repo_);
+    rats::service::CancelToken noCancel;
+    qint64 lastReported = 0;
+    const auto result = exporter.run(
+        path, rats::service::dump::Header {}, noCancel, [&](qint64 torrents, qint64) { lastReported = torrents; });
+
+    QVERIFY2(result.ok, qPrintable(result.error));
+    QVERIFY(result.torrents >= kCount); // plus whatever earlier tests left in the index
+    QCOMPARE(lastReported, result.torrents);
+    QVERIFY(result.bytes > 0);
+    QCOMPARE(QFileInfo(path).size(), result.bytes);
+
+    // Read it straight back and confirm every hash we wrote came out again, with
+    // its file list intact — the join is a separate query from the page sweep, and
+    // losing it would be silent.
+    rats::service::DumpReader reader;
+    QString error;
+    QVERIFY2(reader.open(path, &error), qPrintable(error));
+    QSet<QString> seen;
+    int withFiles = 0;
+    QVector<Torrent> frame;
+    while (reader.readBatch(frame, &error)) {
+        for (const Torrent& t : frame) {
+            if (!written.contains(t.hash))
+                continue;
+            seen.insert(t.hash);
+            if (t.fileList.size() == 1)
+                ++withFiles;
+        }
+    }
+    QVERIFY(reader.atEnd());
+    QVERIFY2(reader.complete(), "a finished export must carry its end marker and footer");
+    QCOMPARE(seen.size(), kCount);
+    QCOMPARE(withFiles, kCount);
+}
+
+void TestManticoreQueries::testImportIsAMergeNotADuplicate()
+{
+    const int kCount = 40;
+    QVector<Torrent> batch;
+    for (int i = 0; i < kCount; ++i) {
+        Torrent t = makeTorrent(600000 + i, QString("merge subject %1").arg(i));
+        t.fileList = { File { QString("m/%1.bin").arg(i), 100 + i } };
+        t.files = 1;
+        batch.append(t);
+    }
+    QCOMPARE(repo_->addMany(batch), kCount);
+    QVERIFY(waitForTorrent(batch.last().hash));
+
+    const QString path = QDir(tempDir_->path()).absoluteFilePath("merge.ratsdb");
+    rats::service::DatabaseExporter exporter(repo_);
+    rats::service::CancelToken noCancel;
+    QVERIFY(exporter.run(path, rats::service::dump::Header {}, noCancel, {}).ok);
+
+    const qint64 before = repo_->statistics().torrents;
+
+    // Importing our own dump must add nothing: every row is already ours. This is
+    // the invariant that makes a dump merge idempotent, and it only holds because
+    // a row id is derived from the infohash rather than handed out by a counter.
+    rats::service::DatabaseImporter importer(indexing_);
+    rats::service::DatabaseImporter::Options options;
+    options.applyFilters = false;
+    const auto result = importer.run(path, options, noCancel, {});
+
+    QVERIFY2(result.ok, qPrintable(result.error));
+    QVERIFY(!result.truncated);
+    QCOMPARE(result.inserted, 0LL);
+    QVERIFY(result.merged >= kCount);
+    QCOMPARE(repo_->statistics().torrents, before);
+}
+
+void TestManticoreQueries::testCancelledExportLeavesNoFile()
+{
+    const QString path = QDir(tempDir_->path()).absoluteFilePath("cancelled.ratsdb");
+    QFile::remove(path);
+
+    rats::service::CancelToken cancel;
+    cancel.cancel(); // already raised: the sweep must stop before writing anything
+
+    rats::service::DatabaseExporter exporter(repo_);
+    const auto result = exporter.run(path, rats::service::dump::Header {}, cancel, {});
+
+    QVERIFY(!result.ok);
+    // Cancellation is not a failure, so it reports no error — and it must not
+    // leave a file that looks like a dump but has no footer.
+    QVERIFY(result.error.isEmpty());
+    QVERIFY(!QFile::exists(path));
+}
+
+void TestManticoreQueries::testInterruptedImportResumesWhereItStopped()
+{
+    const int kCount = 1500; // at least three frames
+    QVector<Torrent> batch;
+    for (int i = 0; i < kCount; ++i)
+        batch.append(makeTorrent(700000 + i, QString("resume subject %1").arg(i)));
+    QCOMPARE(repo_->addMany(batch), kCount);
+    QVERIFY(waitForTorrent(batch.last().hash));
+
+    const QString path = QDir(tempDir_->path()).absoluteFilePath("resume.ratsdb");
+    rats::service::DatabaseExporter exporter(repo_);
+    rats::service::CancelToken noCancel;
+    const auto exported = exporter.run(path, rats::service::dump::Header {}, noCancel, {});
+    QVERIFY(exported.ok);
+
+    // Stop after the first committed frame and keep the offset it reported.
+    rats::service::CancelToken cancel;
+    qint64 resumeOffset = 0;
+    qint64 firstPass = 0;
+    rats::service::DatabaseImporter importer(indexing_);
+    rats::service::DatabaseImporter::Options options;
+    options.applyFilters = false;
+    const auto partial
+        = importer.run(path, options, cancel, [&](const rats::service::DatabaseImporter::Result& progress) {
+              resumeOffset = progress.offset;
+              firstPass = progress.processed;
+              cancel.cancel();
+          });
+
+    QVERIFY(partial.cancelled);
+    QVERIFY(!partial.ok);
+    QVERIFY(firstPass > 0);
+    QVERIFY(resumeOffset > 0);
+    QVERIFY(resumeOffset < QFileInfo(path).size());
+
+    // Resuming reads only what is left. The offset is recorded after the batch it
+    // follows is committed, so a resume may repeat work but must never skip it —
+    // the two passes together have to cover the whole dump.
+    options.startOffset = resumeOffset;
+    const auto rest = importer.run(path, options, noCancel, {});
+    QVERIFY2(rest.ok, qPrintable(rest.error));
+    QVERIFY(rest.processed > 0);
+    QVERIFY(rest.processed < exported.torrents);
+    QVERIFY(firstPass + rest.processed >= exported.torrents);
 }
 
 QTEST_MAIN(TestManticoreQueries)

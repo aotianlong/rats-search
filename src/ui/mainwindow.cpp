@@ -701,12 +701,29 @@ void MainWindow::connectServiceSignals()
     // Whole-database export/import/peer transfer. The service does the work on a
     // worker thread and reports the same JSON payload the REST API pushes; here
     // it becomes a status-bar line and a final message box.
+    //
+    // Only the *local* lane may interrupt: syncFinished belongs to the operation
+    // this user started. Serving another peer reports through serveProgress /
+    // serveFinished and stays in the status bar — a peer that gave up on our
+    // upload is not this user's problem, and putting that in a modal dialog is
+    // what the "database sync did not finish" reports were about.
     if (app_->databaseSync()) {
         auto* sync = app_->databaseSync();
         connect(sync, &rats::service::DatabaseSyncService::syncProgress, this,
             [this](const QJsonObject& info) { showStatusMessage(databaseSyncStatusText(info), 0); });
         connect(sync, &rats::service::DatabaseSyncService::statusMessage, this,
             [this](const QString& message, int timeoutMs) { showStatusMessage(message, timeoutMs); });
+        connect(sync, &rats::service::DatabaseSyncService::serveProgress, this, [this](const QJsonObject& info) {
+            const QString text = databaseServeStatusText(info);
+            if (!text.isEmpty())
+                showStatusMessage(text, 0);
+        });
+        connect(sync, &rats::service::DatabaseSyncService::serveFinished, this,
+            [](const QString& peerId, bool success, const QJsonObject& summary) {
+                // Deliberately log-only. See the note above.
+                qInfo() << "[MainWindow] database serve to" << peerId.left(8) << (success ? "completed" : "ended:")
+                        << summary["reason"].toString();
+            });
         connect(sync, &rats::service::DatabaseSyncService::syncFinished, this,
             [this](bool success, const QJsonObject& summary) {
                 if (!success) {
@@ -723,10 +740,6 @@ void MainWindow::connectServiceSignals()
                     QMessageBox::information(this, tr("Export Database"),
                         tr("Exported %n torrent(s) to:\n%1", nullptr, static_cast<int>(processed))
                             .arg(summary["path"].toString()));
-                    return;
-                }
-                if (operation == QLatin1String("peerServe")) {
-                    showStatusMessage(tr("Sent the database to a peer."), 8000);
                     return;
                 }
                 const qint64 inserted = summary["inserted"].toVariant().toLongLong();
@@ -1826,6 +1839,26 @@ QString MainWindow::databaseSyncStatusText(const QJsonObject& info) const
     if (total > 0)
         return tr("%1: %2 / %3 (%4%)").arg(what).arg(processed).arg(total).arg((processed * 100) / total);
     return tr("%1: %n torrent(s)", nullptr, static_cast<int>(processed)).arg(what);
+}
+
+QString MainWindow::databaseServeStatusText(const QJsonObject& info) const
+{
+    const int sending = info["sending"].toInt();
+    const int waiting = info["waiting"].toInt();
+
+    if (info["generating"].toBool()) {
+        const qint64 processed = info["processed"].toVariant().toLongLong();
+        const qint64 total = info["total"].toVariant().toLongLong();
+        if (total > 0) {
+            return tr("Preparing the database for %n peer(s): %1%", nullptr, qMax(1, waiting))
+                .arg((processed * 100) / total);
+        }
+        return tr("Preparing the database for %n peer(s)...", nullptr, qMax(1, waiting));
+    }
+    if (sending > 0)
+        return tr("Sharing the database with %n peer(s)...", nullptr, sending);
+    // Nothing to say: leave whatever the user's own operation put there.
+    return QString();
 }
 
 void MainWindow::exportDatabase()

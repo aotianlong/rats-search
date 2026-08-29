@@ -279,12 +279,24 @@ void ApiRouter::wireEvents()
             });
     }
     if (app_->databaseSync()) {
+        // Two lanes, two event families. databaseSync* is the local user's own
+        // operation; databaseServe* is what we are doing for other peers, which a
+        // client may display but must never treat as the user's own failure.
         connect(app_->databaseSync(), &service::DatabaseSyncService::syncStarted, this,
             [this](const QJsonObject& info) { emit event(QStringLiteral("databaseSyncStarted"), info); });
         connect(app_->databaseSync(), &service::DatabaseSyncService::syncProgress, this,
             [this](const QJsonObject& info) { emit event(QStringLiteral("databaseSyncProgress"), info); });
         connect(app_->databaseSync(), &service::DatabaseSyncService::syncFinished, this,
             [this](bool, const QJsonObject& summary) { emit event(QStringLiteral("databaseSyncFinished"), summary); });
+        connect(app_->databaseSync(), &service::DatabaseSyncService::serveProgress, this,
+            [this](const QJsonObject& info) { emit event(QStringLiteral("databaseServeProgress"), info); });
+        connect(app_->databaseSync(), &service::DatabaseSyncService::serveFinished, this,
+            [this](const QString& peerId, bool success, const QJsonObject& summary) {
+                QJsonObject info = summary;
+                info["peer"] = peerId;
+                info["success"] = success;
+                emit event(QStringLiteral("databaseServeFinished"), info);
+            });
     }
 }
 
@@ -695,6 +707,23 @@ void ApiRouter::registerMethods()
             return;
         }
         sync->cancel();
+        respond(Result::success(sync->statusJson()));
+    });
+
+    // Rebuild the dump we hand to peers. Normally nobody needs to call this — the
+    // snapshot renews itself once it ages out or the index drifts away from it —
+    // but it is the escape hatch when a user wants peers to see recent work now.
+    add("database.snapshot", [this](const QJsonObject& /*params*/, const ResultCallback& respond) {
+        service::DatabaseSyncService* sync = app_->databaseSync();
+        if (!sync) {
+            respond(Result::failure("Database sync is not available"));
+            return;
+        }
+        QString error;
+        if (!sync->rebuildSnapshot(&error)) {
+            respond(Result::failure(error));
+            return;
+        }
         respond(Result::success(sync->statusJson()));
     });
 

@@ -103,15 +103,20 @@ signals:
     void peerDisconnected(const QString& peerId);
 
     // A peer offered us a file. Answer with acceptFile()/rejectFile() — an offer
-    // left unanswered is dropped by the sender's idle timeout.
+    // left unanswered is dropped by both sides once the offer deadline passes.
     void fileOffered(const QString& peerId, quint64 transferId, const QString& name, qint64 size);
     // Progress for both directions; `sending` tells them apart.
     void fileTransferProgress(
         const QString& peerId, quint64 transferId, bool sending, qint64 transferred, qint64 total, double bytesPerSec);
     // Terminal outcome. `path` is the destination file on the receiving side and
-    // empty on the sending side. Carries no peer id — librats reports completion
-    // by transfer id alone, so callers correlate with the id they were given.
-    void fileTransferFinished(quint64 transferId, bool success, const QString& path);
+    // empty on the sending side.
+    //
+    // The peer id is part of the identity, not a convenience: incoming transfer
+    // ids are allocated by the *sender*, so every peer's first offer is id 1 and
+    // two peers routinely have the same id in flight at once. Correlate on the
+    // (peerId, transferId) pair — matching on the id alone lets one peer's
+    // outcome be mistaken for another's.
+    void fileTransferFinished(const QString& peerId, quint64 transferId, bool success, const QString& path);
 
 private:
     struct Private;

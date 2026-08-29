@@ -88,6 +88,17 @@ public:
     bool databaseSharing() const;
     void setDatabaseSharing(bool enabled);
 
+    // When the dump we serve to peers is rebuilt. It is generated once and handed
+    // to every peer that asks, so these two decide how stale a served index may be
+    // — and, on the other side, how often this node spends a full export.
+    //
+    // Age is the backstop; drift is the real trigger, because an index that has
+    // not moved does not need a new dump however old the one on disk is.
+    int databaseSnapshotMaxAgeHours() const;
+    void setDatabaseSnapshotMaxAgeHours(int hours);
+    int databaseSnapshotMaxDriftPercent() const;
+    void setDatabaseSnapshotMaxDriftPercent(int percent);
+
     // =========================================================================
     // Indexer Settings
     // =========================================================================

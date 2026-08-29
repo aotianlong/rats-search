@@ -7,6 +7,7 @@
 #include <QDateTime>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QMutexLocker>
 #include <QRegularExpression>
 
 namespace rats::data {
@@ -85,17 +86,41 @@ QVector<qint64> idsFor(const QStringList& hashes, QHash<qint64, QStringList>& wa
 
 TorrentRepository::TorrentRepository(Database* db, QObject* parent) : QObject(parent), db_(db) { }
 
+TorrentRepository::Statistics TorrentRepository::statistics() const
+{
+    QMutexLocker lock(&statsMutex_);
+    return stats_;
+}
+
+void TorrentRepository::bumpStatistics(qint64 torrents, qint64 files, qint64 totalSize)
+{
+    Statistics now;
+    {
+        QMutexLocker lock(&statsMutex_);
+        // Clamped, not asserted: a delta is derived from what a write reported, and
+        // a row that vanished underneath us would otherwise drive a counter
+        // negative and keep it there for the life of the process.
+        stats_.torrents = qMax(0LL, stats_.torrents + torrents);
+        stats_.files = qMax(0LL, stats_.files + files);
+        stats_.totalSize = qMax(0LL, stats_.totalSize + totalSize);
+        now = stats_;
+    }
+    emit statisticsChanged(now.torrents, now.files, now.totalSize);
+}
+
 void TorrentRepository::primeFromDatabase()
 {
     const auto rows = db_->query(QStringLiteral("SELECT COUNT(*) AS cnt, SUM(files) AS numfiles, "
                                                 "SUM(size) AS totalsize FROM torrents"));
     if (!rows.isEmpty()) {
+        QMutexLocker lock(&statsMutex_);
         stats_.torrents = rows.first().value(QStringLiteral("cnt")).toLongLong();
         stats_.files = rows.first().value(QStringLiteral("numfiles")).toLongLong();
         stats_.totalSize = rows.first().value(QStringLiteral("totalsize")).toLongLong();
     }
-    qInfo() << "[TorrentRepository] primed:" << stats_.torrents << "torrents," << stats_.files << "files";
-    emit statisticsChanged(stats_.torrents, stats_.files, stats_.totalSize);
+    const Statistics primed = statistics();
+    qInfo() << "[TorrentRepository] primed:" << primed.torrents << "torrents," << primed.files << "files";
+    emit statisticsChanged(primed.torrents, primed.files, primed.totalSize);
 }
 
 // ---------------------------------------------------------------------------
@@ -226,10 +251,7 @@ bool TorrentRepository::add(const Torrent& t, const RowSlot& slot)
     if (!t.fileList.isEmpty())
         saveFiles(t.hash, t.fileList);
 
-    stats_.torrents++;
-    stats_.files += t.files;
-    stats_.totalSize += t.size;
-    emit statisticsChanged(stats_.torrents, stats_.files, stats_.totalSize);
+    bumpStatistics(1, t.files, t.size);
     return true;
 }
 
@@ -288,10 +310,7 @@ bool TorrentRepository::remove(const QString& hash)
     db_->remove(kFiles, { { "id", id } });
 
     if (removedSize > 0 || removedFiles > 0) {
-        stats_.torrents = qMax(0LL, stats_.torrents - 1);
-        stats_.files = qMax(0LL, stats_.files - removedFiles);
-        stats_.totalSize = qMax(0LL, stats_.totalSize - removedSize);
-        emit statisticsChanged(stats_.torrents, stats_.files, stats_.totalSize);
+        bumpStatistics(-1, -removedFiles, -removedSize);
     }
     return true;
 }
@@ -612,10 +631,7 @@ int TorrentRepository::addMany(const QVector<Torrent>& torrents)
     if (!fileRows.isEmpty())
         db_->replaceMany(kFiles, fileRows);
 
-    stats_.torrents += torrentRows.size();
-    stats_.files += addedFiles;
-    stats_.totalSize += addedSize;
-    emit statisticsChanged(stats_.torrents, stats_.files, stats_.totalSize);
+    bumpStatistics(torrentRows.size(), addedFiles, addedSize);
     return torrentRows.size();
 }
 
@@ -715,8 +731,7 @@ bool TorrentRepository::updateFiles(const QString& hash, const QVector<File>& fi
     if (!db_->update(kTorrents, { { "files", files.size() } }, { { "id", id } }))
         return false;
 
-    stats_.files += files.size() - oldCount;
-    emit statisticsChanged(stats_.torrents, stats_.files, stats_.totalSize);
+    bumpStatistics(0, files.size() - oldCount, 0);
     emit torrentUpdated(hash);
     return true;
 }

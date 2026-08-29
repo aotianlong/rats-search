@@ -80,6 +80,8 @@ void PeerApi::install()
         [this](const QString& peerId, const QJsonObject& data) { handleRandomTorrentsRequest(peerId, data); });
     transport->registerHandler("databaseRequest",
         [this](const QString& peerId, const QJsonObject& data) { handleDatabaseRequest(peerId, data); });
+    transport->registerHandler("databaseCancel",
+        [this](const QString& peerId, const QJsonObject& data) { handleDatabaseCancel(peerId, data); });
 
     // --- Responses we consume ----------------------------------------------
     transport->registerHandler("searchTorrent_response",
@@ -94,6 +96,10 @@ void PeerApi::install()
         [this](const QString& peerId, const QJsonObject& data) { handleRandomTorrentsResponse(peerId, data); });
     transport->registerHandler("databaseRequest_response",
         [this](const QString& peerId, const QJsonObject& data) { handleDatabaseResponse(peerId, data); });
+    // Unsolicited, like torrentAnnounce: the serving peer heartbeats while it
+    // builds its snapshot so our deadline measures silence rather than its size.
+    transport->registerHandler("databaseProgress",
+        [this](const QString& peerId, const QJsonObject& data) { handleDatabaseProgress(peerId, data); });
     transport->registerHandler("torrentAnnounce",
         [this](const QString& peerId, const QJsonObject& data) { handleTorrentAnnounce(peerId, data); });
 
@@ -242,6 +248,13 @@ void PeerApi::handleDatabaseRequest(const QString& peerId, const QJsonObject& da
     sync->handlePeerRequest(peerId, data);
 }
 
+void PeerApi::handleDatabaseCancel(const QString& peerId, const QJsonObject& data)
+{
+    qInfo() << "[PeerApi] databaseCancel from" << shortId(peerId);
+    if (service::DatabaseSyncService* sync = app_->databaseSync())
+        sync->handlePeerCancel(peerId, data);
+}
+
 // ============================================================================
 // Responses we consume
 // ============================================================================
@@ -348,6 +361,12 @@ void PeerApi::handleDatabaseResponse(const QString& peerId, const QJsonObject& d
             << (data["accepted"].toBool(false) ? "accepted" : "refused");
     if (service::DatabaseSyncService* sync = app_->databaseSync())
         sync->handlePeerResponse(peerId, data);
+}
+
+void PeerApi::handleDatabaseProgress(const QString& peerId, const QJsonObject& data)
+{
+    if (service::DatabaseSyncService* sync = app_->databaseSync())
+        sync->handlePeerProgress(peerId, data);
 }
 
 void PeerApi::handleTorrentAnnounce(const QString& peerId, const QJsonObject& data)

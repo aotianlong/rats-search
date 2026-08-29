@@ -134,6 +134,7 @@ private:
     void showStatusMessage(const QString& message, int timeoutMs = 0);
     // One status-bar line for a database export/import/transfer progress payload.
     QString databaseSyncStatusText(const QJsonObject& info) const;
+    QString databaseServeStatusText(const QJsonObject& info) const;
     void clearStatusMessage();
     // Re-elide statusMessageText_ to the label's current width.
     void updateStatusMessageElide();

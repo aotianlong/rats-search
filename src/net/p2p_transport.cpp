@@ -184,11 +184,15 @@ void P2PTransport::Private::setupFileTransferCallbacks()
             Qt::QueuedConnection);
     });
 
-    fileTransfer->on_complete([this](uint64_t id, bool success, const std::string& path) {
+    fileTransfer->on_complete([this](const librats::PeerId& peer, uint64_t id, bool success, const std::string& path) {
+        const QString peerId = QString::fromStdString(peer.to_hex());
         const quint64 transferId = id;
         const QString file = QString::fromStdString(path);
         QMetaObject::invokeMethod(
-            q, [this, transferId, success, file]() { emit q->fileTransferFinished(transferId, success, file); },
+            q,
+            [this, peerId, transferId, success, file]() {
+                emit q->fileTransferFinished(peerId, transferId, success, file);
+            },
             Qt::QueuedConnection);
     });
 }
@@ -390,6 +394,13 @@ bool P2PTransport::start()
             QDir().mkpath(transferDir); // librats writes in-progress files here
             librats::FileTransfer::Config ftCfg;
             ftCfg.temp_directory = transferDir.toStdString();
+            // A database dump is a single multi-gigabyte file, often over a relayed
+            // path: the 60 s default drops it on any congestion stall that outlasts
+            // a minute, and restarting means resending everything. The offer
+            // deadline is separate because the far side answers an offer from its
+            // GUI thread, which can legitimately be busy for a while.
+            ftCfg.transfer_timeout_secs = 5 * 60;
+            ftCfg.offer_timeout_secs = 10 * 60;
             d_->fileTransfer = d_->node->add_subsystem(std::make_unique<librats::FileTransfer>(std::move(ftCfg)));
             d_->setupFileTransferCallbacks();
         }

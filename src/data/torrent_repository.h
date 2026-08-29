@@ -4,6 +4,7 @@
 #include "domain/torrent.h"
 
 #include <QHash>
+#include <QMutex>
 #include <QObject>
 #include <QSet>
 #include <QStringList>
@@ -133,7 +134,10 @@ public:
     bool mergeInfo(const QString& hash, const QJsonObject& info);
     bool updateClassification(const QString& hash, domain::ContentType type, domain::ContentCategory category);
 
-    Statistics statistics() const { return stats_; }
+    // Snapshot of the counters. Safe from any thread: the bulk paths run on the
+    // database-sync worker while the GUI reads this, so the three fields have to
+    // move together and be published atomically.
+    Statistics statistics() const;
 
     // Row-id migration ---------------------------------------------------------
     // Outcome of one page of re-keying (see migrateRowIdPage).
@@ -193,7 +197,13 @@ private:
     // Build the "contentType = N" / "contentType IN (5,6)" fragment for a filter.
     static QString contentTypeFilter(const QString& type);
 
+    // Apply a delta to the counters and emit statisticsChanged with the result.
+    // The lock covers only the arithmetic — the signal is emitted outside it, so
+    // a direct-connected slot cannot re-enter the repository under the lock.
+    void bumpStatistics(qint64 torrents, qint64 files, qint64 totalSize);
+
     Database* db_;
+    mutable QMutex statsMutex_; // guards stats_
     Statistics stats_;
 };
 

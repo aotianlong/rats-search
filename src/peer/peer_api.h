@@ -66,6 +66,7 @@ private:
     // Whole-database replication. The wire names live here; the policy (is
     // sharing on? are we busy?) and the transfer itself are the sync service's.
     void handleDatabaseRequest(const QString& peerId, const QJsonObject& data);
+    void handleDatabaseCancel(const QString& peerId, const QJsonObject& data);
 
     // Response handlers (we consume these) -------------------------------------
     void handleSearchResult(const QString& peerId, const QJsonObject& data);
@@ -74,6 +75,7 @@ private:
     void handleFeedResponse(const QString& peerId, const QJsonObject& data);
     void handleRandomTorrentsResponse(const QString& peerId, const QJsonObject& data);
     void handleDatabaseResponse(const QString& peerId, const QJsonObject& data);
+    void handleDatabaseProgress(const QString& peerId, const QJsonObject& data);
     void handleTorrentAnnounce(const QString& peerId, const QJsonObject& data);
 
     // Peer lifecycle -----------------------------------------------------------

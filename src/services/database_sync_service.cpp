@@ -3,6 +3,7 @@
 #include "data/torrent_repository.h"
 #include "net/p2p_transport.h"
 #include "services/database_dump.h"
+#include "services/database_exporter.h"
 #include "services/indexing_service.h"
 
 #include <QDateTime>
@@ -13,7 +14,8 @@
 #include <QJsonDocument>
 #include <QMetaObject>
 #include <QMutexLocker>
-#include <QStringList>
+#include <QSet>
+#include <QStorageInfo>
 #include <QTimer>
 #include <QtConcurrent>
 
@@ -23,14 +25,51 @@ namespace rats::service {
 
 namespace {
 
-// Torrents per database page while exporting. Also the IN() batch size for the
-// importer, and both must stay under Manticore's max_matches (1000).
-constexpr int kPageSize = 500;
-// How long we wait for a peer to answer databaseRequest at all.
-constexpr int kResponseTimeoutMs = 60 * 1000;
-// How long we then wait for the file offer: the peer has to export its whole
-// index first, which on a large one takes minutes.
-constexpr int kOfferTimeoutMs = 30 * 60 * 1000;
+// --- timeouts --------------------------------------------------------------
+//
+// Every deadline below measures *silence*, never work. That is the whole point of
+// the heartbeat: how long a peer takes to build a snapshot depends on the size of
+// its index, so no constant can be right for both a 50k and a 3M-row database.
+// How long it may go quiet does not.
+
+// A peer must answer databaseRequest at all.
+constexpr qint64 kResponseTimeoutMs = 60 * 1000;
+// Maximum silence while a peer is building its snapshot. Reset by every
+// databaseProgress, so this is "the peer stopped talking", not "the peer is slow".
+constexpr qint64 kPrepareSilenceMs = 3 * 60 * 1000;
+// Once the peer says the snapshot is ready, the file offer should follow promptly.
+constexpr qint64 kOfferTimeoutMs = 3 * 60 * 1000;
+// How often we heartbeat to the peers waiting on a snapshot we are building.
+constexpr qint64 kHeartbeatMs = 10 * 1000;
+// Watchdog tick. Every deadline is checked here rather than by its own one-shot
+// timer, so a timer can never outlive the operation that armed it.
+constexpr int kWatchdogMs = 1000;
+
+// --- serving limits --------------------------------------------------------
+
+// Concurrent outgoing database transfers. Each one is a multi-hundred-megabyte
+// upload; serving the whole swarm at once helps nobody.
+constexpr int kMaxConcurrentServes = 3;
+// Minimum gap between two accepted requests from the same peer. Serving is cheap
+// now that it is a file already on disk, so this only exists to stop a peer
+// looping on it.
+constexpr qint64 kMinRequestIntervalMs = 30 * 1000;
+// Room we insist on having beyond the estimated dump size before generating one.
+constexpr double kFreeSpaceMargin = 1.25;
+
+// --- housekeeping ----------------------------------------------------------
+
+// Leftovers in the transfer directory older than this are swept at startup.
+constexpr qint64 kStaleFileAgeSecs = 24 * 60 * 60;
+// Floor between two progress signals. An import of a million torrents commits two
+// thousand batches; without this each one becomes a websocket broadcast and a
+// status-bar repaint.
+constexpr qint64 kProgressIntervalMs = 300;
+
+qint64 nowMs()
+{
+    return QDateTime::currentMSecsSinceEpoch();
+}
 
 QString operationName(DatabaseSyncService::Operation operation)
 {
@@ -41,8 +80,6 @@ QString operationName(DatabaseSyncService::Operation operation)
         return QStringLiteral("import");
     case DatabaseSyncService::Operation::PeerPull:
         return QStringLiteral("peerPull");
-    case DatabaseSyncService::Operation::PeerServe:
-        return QStringLiteral("peerServe");
     case DatabaseSyncService::Operation::None:
         break;
     }
@@ -79,13 +116,22 @@ DatabaseSyncService::DatabaseSyncService(data::TorrentRepository* repository, In
     , transport_(transport)
     , dataDirectory_(std::move(dataDirectory))
     , clientVersion_(std::move(clientVersion))
+    , snapshot_(QDir(dataDirectory_).absoluteFilePath(QStringLiteral("dbsync")))
 {
+    QDir().mkpath(transferDirectory());
+    sweepTransferDirectory();
+    snapshot_.load();
+
     if (transport_) {
         connect(transport_, &net::P2PTransport::fileOffered, this, &DatabaseSyncService::onFileOffered);
         connect(transport_, &net::P2PTransport::fileTransferProgress, this, &DatabaseSyncService::onTransferProgress);
         connect(transport_, &net::P2PTransport::fileTransferFinished, this, &DatabaseSyncService::onTransferFinished);
         connect(transport_, &net::P2PTransport::peerDisconnected, this, &DatabaseSyncService::onPeerDisconnected);
     }
+
+    auto* watchdog = new QTimer(this);
+    connect(watchdog, &QTimer::timeout, this, &DatabaseSyncService::onWatchdog);
+    watchdog->start(kWatchdogMs);
 }
 
 DatabaseSyncService::~DatabaseSyncService()
@@ -94,20 +140,147 @@ DatabaseSyncService::~DatabaseSyncService()
 }
 
 // ===========================================================================
-// Operation slot
+// Status
 // ===========================================================================
 
-bool DatabaseSyncService::beginOperation(
+bool DatabaseSyncService::isBusy() const
+{
+    return local_ != nullptr;
+}
+
+DatabaseSyncService::Status DatabaseSyncService::status() const
+{
+    QMutexLocker lock(&mutex_);
+    return status_;
+}
+
+DatabaseSyncService::ServeStatus DatabaseSyncService::serveStatus() const
+{
+    ServeStatus s;
+    if (const SnapshotPtr job = snapshotJob_) {
+        QMutexLocker lock(&mutex_);
+        s.generating = true;
+        s.processed = job->processed;
+        s.total = job->total;
+    }
+    for (const Serve& serve : serves_) {
+        if (serve.waitingForSnapshot)
+            ++s.waiting;
+        else if (serve.transferId != 0)
+            ++s.sending;
+    }
+    return s;
+}
+
+QJsonObject DatabaseSyncService::statusJson() const
+{
+    QJsonObject obj = statusToJson(status());
+
+    const ServeStatus serve = serveStatus();
+    QJsonObject serveObj;
+    serveObj["generating"] = serve.generating;
+    serveObj["processed"] = static_cast<double>(serve.processed);
+    serveObj["total"] = static_cast<double>(serve.total);
+    serveObj["waiting"] = serve.waiting;
+    serveObj["sending"] = serve.sending;
+    obj["serve"] = serveObj;
+
+    const DatabaseSnapshot::Info info = snapshot_.info();
+    QJsonObject snapObj;
+    snapObj["valid"] = info.valid;
+    snapObj["torrents"] = static_cast<double>(info.torrents);
+    snapObj["bytes"] = static_cast<double>(info.bytes);
+    if (info.created.isValid())
+        snapObj["created"] = info.created.toString(Qt::ISODate);
+    snapObj["fresh"] = repository_ && snapshot_.isFresh(repository_->statistics().torrents);
+    obj["snapshot"] = snapObj;
+
+    obj["sharing"] = sharingEnabled_;
+    const QJsonObject pending = pendingImportJson();
+    if (!pending.isEmpty())
+        obj["pendingImport"] = pending;
+    return obj;
+}
+
+QJsonObject DatabaseSyncService::pendingImportJson() const
+{
+    QFile file(resumeStatePath());
+    if (!file.open(QIODevice::ReadOnly))
+        return {};
+    const QJsonObject obj = QJsonDocument::fromJson(file.readAll()).object();
+    const QString path = obj["path"].toString();
+    if (path.isEmpty())
+        return {};
+
+    // Only offer to resume something that is still there and still the same file.
+    const QFileInfo info(path);
+    if (!info.exists() || info.size() != obj["size"].toVariant().toLongLong())
+        return {};
+    return obj;
+}
+
+void DatabaseSyncService::publishLocal()
+{
+    emit syncProgress(statusToJson(status()));
+}
+
+void DatabaseSyncService::publishServe()
+{
+    const ServeStatus serve = serveStatus();
+    QJsonObject obj;
+    obj["generating"] = serve.generating;
+    obj["processed"] = static_cast<double>(serve.processed);
+    obj["total"] = static_cast<double>(serve.total);
+    obj["waiting"] = serve.waiting;
+    obj["sending"] = serve.sending;
+    emit serveProgress(obj);
+}
+
+void DatabaseSyncService::setStage(const LocalPtr& op, const QString& stage)
+{
+    if (local_ != op)
+        return;
+    {
+        QMutexLocker lock(&mutex_);
+        status_.stage = stage;
+    }
+    publishLocal();
+}
+
+void DatabaseSyncService::setSnapshotPolicy(const DatabaseSnapshot::Policy& policy)
+{
+    snapshot_.setPolicy(policy);
+}
+
+void DatabaseSyncService::setSharingEnabled(bool enabled)
+{
+    sharingEnabled_ = enabled;
+    if (!enabled) {
+        const QStringList peers = serves_.keys();
+        for (const QString& peerId : peers)
+            dropServe(peerId, false, QStringLiteral("sharing disabled"));
+        cancelSnapshotIfUnwanted();
+    }
+}
+
+// ===========================================================================
+// The user's lane
+// ===========================================================================
+
+DatabaseSyncService::LocalPtr DatabaseSyncService::beginLocal(
     Operation operation, const QString& path, const QString& peerId, QString* error)
 {
-    bool expected = false;
-    if (!busy_.compare_exchange_strong(expected, true)) {
+    if (local_) {
         if (error)
-            *error = tr("A database sync is already running.");
-        return false;
+            *error = tr("A database operation is already running.");
+        return nullptr;
     }
 
-    cancelRequested_ = false;
+    auto op = std::make_shared<LocalOperation>();
+    op->id = ++nextOperationId_;
+    op->operation = operation;
+    local_ = op;
+
     {
         QMutexLocker lock(&mutex_);
         status_ = Status {};
@@ -116,12 +289,31 @@ bool DatabaseSyncService::beginOperation(
         status_.path = path;
         status_.peerId = peerId;
     }
-    emit syncStarted(statusJson());
-    return true;
+    emit syncStarted(statusToJson(status()));
+    return op;
 }
 
-void DatabaseSyncService::finishOperation(bool success, const QString& error)
+void DatabaseSyncService::finishLocal(const LocalPtr& op, bool success, const QString& error)
 {
+    // The identity check is the whole reason an operation is an object. A worker
+    // that was cancelled, or a deadline belonging to an attempt that has already
+    // been replaced, arrives here holding *its* operation — and finishes nothing.
+    if (!op || local_ != op)
+        return;
+
+    // Tear down anything this operation still owns on the wire.
+    if (transport_ && op->transferId != 0 && !op->peerId.isEmpty())
+        transport_->cancelFile(op->peerId, op->transferId);
+    if (op->peerEngaged && !success && transport_ && !op->peerId.isEmpty()) {
+        // Tell the peer to stop. Without this it keeps building a snapshot for a
+        // requester that is no longer listening, holds a serving slot while doing
+        // it, and then offers a file that gets rejected — which is what used to put
+        // a failure dialog on the *sharing* user's screen. Gated on the peer having
+        // accepted: there is nothing to cancel after a refusal.
+        transport_->sendMessage(op->peerId, QStringLiteral("databaseCancel"),
+            QJsonObject { { "session", static_cast<double>(op->sessionId) } });
+    }
+
     QJsonObject summary;
     {
         QMutexLocker lock(&mutex_);
@@ -133,82 +325,42 @@ void DatabaseSyncService::finishOperation(bool success, const QString& error)
     }
     summary["success"] = success;
 
-    pendingPeer_.clear();
-    incomingTransferId_ = 0;
-    outgoingTransferId_ = 0;
-    outgoingPath_.clear();
-    busy_ = false;
-
+    local_.reset();
     emit syncFinished(success, summary);
-}
-
-void DatabaseSyncService::publishProgress()
-{
-    emit syncProgress(statusJson());
-}
-
-void DatabaseSyncService::updateStage(const QString& stage)
-{
-    {
-        QMutexLocker lock(&mutex_);
-        status_.stage = stage;
-    }
-    publishProgress();
-}
-
-bool DatabaseSyncService::isBusy() const
-{
-    return busy_.load();
-}
-
-DatabaseSyncService::Status DatabaseSyncService::status() const
-{
-    QMutexLocker lock(&mutex_);
-    return status_;
-}
-
-QJsonObject DatabaseSyncService::statusJson() const
-{
-    QMutexLocker lock(&mutex_);
-    return statusToJson(status_);
 }
 
 void DatabaseSyncService::cancel()
 {
-    if (!busy_.load())
+    const LocalPtr op = local_;
+    if (!op)
         return;
-    cancelRequested_ = true;
+    op->cancel.cancel();
+    setStage(op, QStringLiteral("cancelling"));
 
-    // A transfer has no worker loop to notice the flag; tear it down here.
-    if (transport_) {
-        if (incomingTransferId_ != 0 && !pendingPeer_.isEmpty())
-            transport_->cancelFile(pendingPeer_, incomingTransferId_);
-        if (outgoingTransferId_ != 0)
-            transport_->cancelFile(status().peerId, outgoingTransferId_);
-    }
-    updateStage(QStringLiteral("cancelling"));
-
-    // Nothing is running in the background while we only wait on a peer, so the
-    // slot has to be released here rather than by a worker.
-    if (!worker_.isRunning() && incomingTransferId_ == 0 && outgoingTransferId_ == 0)
-        finishOperation(false, tr("Cancelled."));
+    // A worker notices the token and finishes the operation itself. An operation
+    // that has no worker — one merely waiting on a peer — has nobody to notice,
+    // so it is finished here.
+    if (!op->worker.isRunning())
+        finishLocal(op, false, tr("Cancelled."));
 }
 
 void DatabaseSyncService::shutdown()
 {
-    cancelRequested_ = true;
-    if (worker_.isRunning())
-        worker_.waitForFinished();
+    if (local_) {
+        local_->cancel.cancel();
+        if (local_->worker.isRunning())
+            local_->worker.waitForFinished();
+        local_.reset();
+    }
+    if (snapshotJob_) {
+        snapshotJob_->cancel.cancel();
+        if (snapshotJob_->worker.isRunning())
+            snapshotJob_->worker.waitForFinished();
+        snapshotJob_.reset();
+    }
 }
 
-void DatabaseSyncService::setSharingEnabled(bool enabled)
-{
-    sharingEnabled_ = enabled;
-}
-
-// ===========================================================================
-// Export
-// ===========================================================================
+// --- export ----------------------------------------------------------------
 
 bool DatabaseSyncService::exportToFile(const QString& path, QString* error)
 {
@@ -222,122 +374,83 @@ bool DatabaseSyncService::exportToFile(const QString& path, QString* error)
             *error = tr("Database is not available.");
         return false;
     }
-    if (!beginOperation(Operation::Export, path, QString(), error))
+
+    const qint64 torrents = repository_->statistics().torrents;
+    const qint64 needed = static_cast<qint64>(torrents * snapshot_.bytesPerTorrent() * kFreeSpaceMargin);
+    const qint64 free = availableBytes(QFileInfo(path).absolutePath());
+    if (free >= 0 && free < needed) {
+        if (error) {
+            *error = tr("Not enough free space: the export needs about %1 MB, %2 MB are available.")
+                         .arg(needed / (1024 * 1024))
+                         .arg(free / (1024 * 1024));
+        }
+        return false;
+    }
+
+    const LocalPtr op = beginLocal(Operation::Export, path, QString(), error);
+    if (!op)
         return false;
 
-    worker_ = QtConcurrent::run([this, path]() { runExport(path, QString()); });
+    {
+        QMutexLocker lock(&mutex_);
+        status_.total = torrents;
+        status_.stage = QStringLiteral("exporting");
+    }
+    publishLocal();
+
+    op->worker = QtConcurrent::run([this, op, path]() { runExport(op, path); });
     return true;
 }
 
-void DatabaseSyncService::runExport(const QString& path, const QString& forPeer)
+void DatabaseSyncService::runExport(const LocalPtr& op, const QString& path)
 {
-    updateStage(QStringLiteral("exporting"));
-
     dump::Header header;
     header.client = clientVersion_;
     header.peerId = transport_ ? transport_->ourPeerId() : QString();
     header.created = QDateTime::currentDateTime();
     header.torrents = repository_->statistics().torrents;
 
-    {
-        QMutexLocker lock(&mutex_);
-        status_.total = header.torrents;
-    }
+    qint64 lastPublish = 0;
+    DatabaseExporter exporter(repository_);
+    const DatabaseExporter::Result result
+        = exporter.run(path, header, op->cancel, [this, op, &lastPublish](qint64 torrents, qint64 bytes) {
+              {
+                  QMutexLocker lock(&mutex_);
+                  status_.processed = torrents;
+                  status_.bytes = bytes;
+              }
+              const qint64 now = nowMs();
+              if (now - lastPublish < kProgressIntervalMs)
+                  return;
+              lastPublish = now;
+              QMetaObject::invokeMethod(
+                  this,
+                  [this, op]() {
+                      if (local_ == op)
+                          publishLocal();
+                  },
+                  Qt::QueuedConnection);
+          });
 
-    DumpWriter writer;
-    QString error;
-    if (!writer.open(path, header, &error)) {
-        QMetaObject::invokeMethod(this, [this, error]() { finishOperation(false, error); }, Qt::QueuedConnection);
-        return;
-    }
-
-    // Keyset pagination, for the reason spelled out on pageAfterId(): OFFSET
-    // cannot walk past max_matches.
-    qint64 afterId = 0;
-    qint64 written = 0;
-    bool ok = true;
-
-    while (!cancelRequested_.load()) {
-        const QVector<domain::Torrent> page = repository_->pageAfterId(afterId, kPageSize);
-        if (page.isEmpty())
-            break;
-        afterId = page.last().id;
-
-        QStringList hashes;
-        hashes.reserve(page.size());
-        for (const domain::Torrent& t : page)
-            hashes << t.hash;
-        const QHash<QString, QVector<domain::File>> files = repository_->filesOf(hashes);
-
-        for (const domain::Torrent& t : page) {
-            domain::Torrent copy = t;
-            copy.fileList = files.value(t.hash);
-            if (!writer.write(copy, &error)) {
-                ok = false;
-                break;
-            }
-            ++written;
-        }
-        if (!ok)
-            break;
-
-        {
-            QMutexLocker lock(&mutex_);
-            status_.processed = written;
-            status_.bytes = writer.bytesWritten();
-        }
-        QMetaObject::invokeMethod(this, [this]() { publishProgress(); }, Qt::QueuedConnection);
-    }
-
-    if (cancelRequested_.load()) {
-        writer.abort();
-        QMetaObject::invokeMethod(this, [this]() { finishOperation(false, tr("Cancelled.")); }, Qt::QueuedConnection);
-        return;
-    }
-    if (!ok || !writer.finish(&error)) {
-        writer.abort();
-        const QString reason = error.isEmpty() ? tr("Failed to write the dump.") : error;
-        QMetaObject::invokeMethod(this, [this, reason]() { finishOperation(false, reason); }, Qt::QueuedConnection);
-        return;
-    }
-
-    {
-        QMutexLocker lock(&mutex_);
-        status_.processed = written;
-        status_.bytes = QFileInfo(path).size();
-        status_.totalBytes = status_.bytes;
-    }
-
-    if (forPeer.isEmpty()) {
-        QMetaObject::invokeMethod(this, [this]() { finishOperation(true); }, Qt::QueuedConnection);
-        return;
-    }
-
-    // Serving a peer: the dump is only the first half of the job.
     QMetaObject::invokeMethod(
         this,
-        [this, path, forPeer]() {
-            if (!transport_ || !transport_->isFileTransferAvailable()) {
-                QFile::remove(path);
-                finishOperation(false, tr("File transfer is not available."));
+        [this, op, result]() {
+            if (result.ok) {
+                QMutexLocker lock(&mutex_);
+                status_.processed = result.torrents;
+                status_.bytes = result.bytes;
+                status_.totalBytes = result.bytes;
+            }
+            if (op->cancel.cancelled()) {
+                finishLocal(op, false, tr("Cancelled."));
                 return;
             }
-            outgoingPath_ = path;
-            outgoingTransferId_ = transport_->sendFile(forPeer, path);
-            if (outgoingTransferId_ == 0) {
-                QFile::remove(path);
-                finishOperation(false, tr("Could not offer the database to the peer."));
-                return;
-            }
-            updateStage(QStringLiteral("transferring"));
-            qInfo() << "[DatabaseSync] offering" << QFileInfo(path).size() << "bytes to" << forPeer.left(8);
+            finishLocal(op, result.ok, result.error);
         },
         Qt::QueuedConnection);
 }
 
-// ===========================================================================
-// Import
-// ===========================================================================
+// --- import ----------------------------------------------------------------
 
 bool DatabaseSyncService::importFromFile(const QString& path, const ImportOptions& options, QString* error)
 {
@@ -351,116 +464,99 @@ bool DatabaseSyncService::importFromFile(const QString& path, const ImportOption
             *error = tr("Indexing is not available.");
         return false;
     }
-    if (!beginOperation(Operation::Import, path, QString(), error))
-        return false;
 
-    worker_ = QtConcurrent::run([this, path, options]() { runImport(path, options); });
+    const LocalPtr op = beginLocal(Operation::Import, path, QString(), error);
+    if (!op)
+        return false;
+    op->worker = QtConcurrent::run([this, op, path, options]() { runImport(op, path, options); });
     return true;
 }
 
-void DatabaseSyncService::runImport(const QString& path, const ImportOptions& options)
+void DatabaseSyncService::runImport(const LocalPtr& op, const QString& path, const ImportOptions& options)
 {
-    updateStage(QStringLiteral("importing"));
+    QMetaObject::invokeMethod(this, [this, op]() { setStage(op, QStringLiteral("importing")); }, Qt::QueuedConnection);
 
-    DumpReader reader;
-    QString error;
-    if (!reader.open(path, &error)) {
-        QMetaObject::invokeMethod(this, [this, error]() { finishOperation(false, error); }, Qt::QueuedConnection);
-        return;
-    }
+    const qint64 fileSize = QFileInfo(path).size();
 
-    const qint64 fileSize = reader.fileSize();
-    qint64 processed = 0;
-    qint64 inserted = 0;
-    qint64 merged = 0;
-    qint64 rejected = 0;
-    qint64 collided = 0;
-
-    if (options.resume) {
-        const qint64 offset = loadResumeOffset(path, fileSize);
-        if (offset > 0 && reader.seekTo(offset)) {
-            qInfo() << "[DatabaseSync] resuming import of" << path << "at byte" << offset;
-        }
-    }
+    DatabaseImporter::Options importOptions;
+    importOptions.applyFilters = options.applyFilters;
+    if (options.resume)
+        importOptions.startOffset = loadResumeOffset(path, fileSize);
 
     {
         QMutexLocker lock(&mutex_);
-        status_.total = reader.header().torrents;
         status_.totalBytes = fileSize;
     }
 
-    IndexingService::BatchOptions batchOptions;
-    batchOptions.applyFilters = options.applyFilters;
+    qint64 lastPublish = 0;
+    DatabaseImporter importer(indexing_);
+    const DatabaseImporter::Result result = importer.run(path, importOptions, op->cancel,
+        [this, op, path, fileSize, &lastPublish](const DatabaseImporter::Result& progress) {
+            // Persisted after the batch it follows is committed, so a resume can
+            // repeat work but never skip it.
+            saveResumeState(path, progress.offset, fileSize);
+            {
+                QMutexLocker lock(&mutex_);
+                status_.processed = progress.processed;
+                status_.inserted = progress.inserted;
+                status_.merged = progress.merged;
+                status_.rejected = progress.rejected;
+                status_.bytes = progress.offset;
+            }
+            const qint64 now = nowMs();
+            if (now - lastPublish < kProgressIntervalMs)
+                return;
+            lastPublish = now;
+            QMetaObject::invokeMethod(
+                this,
+                [this, op]() {
+                    if (local_ == op)
+                        publishLocal();
+                },
+                Qt::QueuedConnection);
+        });
 
-    QVector<domain::Torrent> batch;
-    bool failed = false;
-
-    while (!cancelRequested_.load() && reader.readBatch(batch, &error)) {
-        const IndexingService::BatchResult result = indexing_->insertBatch(batch, batchOptions);
-        processed += batch.size();
-        inserted += result.inserted;
-        merged += result.merged;
-        rejected += result.rejected;
-        collided += result.collided;
-
-        // The offset is only written after the batch it follows is committed, so
-        // a resume can duplicate work but never skip it.
-        saveResumeState(path, reader.offset(), fileSize);
-
-        {
-            QMutexLocker lock(&mutex_);
-            status_.processed = processed;
-            status_.inserted = inserted;
-            status_.merged = merged;
-            status_.rejected = rejected;
-            status_.bytes = reader.offset();
-        }
-        QMetaObject::invokeMethod(this, [this]() { publishProgress(); }, Qt::QueuedConnection);
-    }
-
-    if (!reader.atEnd() && !error.isEmpty())
-        failed = true;
-
-    const bool cancelled = cancelRequested_.load();
-    const bool truncated = reader.atEnd() && !reader.complete();
-    const bool removeWhenDone = options.removeWhenDone;
-
-    if (!cancelled)
+    if (!result.cancelled)
         clearResumeState();
 
     QMetaObject::invokeMethod(
         this,
-        [this, cancelled, failed, truncated, error, removeWhenDone, path, inserted, merged, collided]() {
-            if (removeWhenDone && !cancelled)
-                QFile::remove(path);
+        [this, op, path, options, result]() {
+            {
+                QMutexLocker lock(&mutex_);
+                status_.processed = result.processed;
+                status_.inserted = result.inserted;
+                status_.merged = result.merged;
+                status_.rejected = result.rejected;
+            }
+            if (result.cancelled) {
+                finishLocal(op, false, tr("Cancelled — the import can be resumed."));
+                return;
+            }
+            if (!result.ok) {
+                finishLocal(op, false, result.error.isEmpty() ? tr("The dump could not be read.") : result.error);
+                return;
+            }
 
-            if (cancelled) {
-                finishOperation(false, tr("Cancelled — the import can be resumed."));
-                return;
-            }
-            if (failed) {
-                finishOperation(false, error.isEmpty() ? tr("The dump could not be read.") : error);
-                return;
-            }
-            qInfo() << "[DatabaseSync] import finished:" << inserted << "new," << merged << "already known";
-            if (collided > 0) {
-                // A birthday collision on the 63-bit row id. Expected to be zero
-                // on any realistic index, so say so loudly if it is not.
-                qWarning() << "[DatabaseSync]" << collided
+            if (options.removeWhenDone)
+                QFile::remove(path);
+            qInfo() << "[DatabaseSync] import finished:" << result.inserted << "new," << result.merged
+                    << "already known";
+            if (result.collided > 0) {
+                // A birthday collision on the 63-bit row id. Expected to be zero on
+                // any realistic index, so say so loudly if it is not.
+                qWarning() << "[DatabaseSync]" << result.collided
                            << "torrents skipped: their row id belongs to a different torrent";
             }
-            if (truncated) {
-                // Everything read was still merged; say so rather than claiming a
-                // clean import.
+            if (result.truncated)
                 emit statusMessage(tr("Database import finished, but the dump was truncated."), 8000);
-            }
-            finishOperation(true);
+            finishLocal(op, true);
         },
         Qt::QueuedConnection);
 }
 
 // ===========================================================================
-// Peer transfer
+// Pulling from a peer
 // ===========================================================================
 
 bool DatabaseSyncService::requestFromPeer(const QString& peerId, const ImportOptions& options, QString* error)
@@ -480,178 +576,95 @@ bool DatabaseSyncService::requestFromPeer(const QString& peerId, const ImportOpt
             *error = tr("No peer given.");
         return false;
     }
-    if (!beginOperation(Operation::PeerPull, QString(), peerId, error))
+
+    const LocalPtr op = beginLocal(Operation::PeerPull, QString(), peerId, error);
+    if (!op)
         return false;
 
-    pendingPeer_ = peerId;
-    pendingImportOptions_ = options;
-    if (!transport_->sendMessage(peerId, QStringLiteral("databaseRequest"), QJsonObject {})) {
-        finishOperation(false, tr("Could not reach the peer."));
+    op->peerId = peerId;
+    op->importOptions = options;
+    op->sessionId = ++nextSessionId_;
+
+    if (!transport_->sendMessage(peerId, QStringLiteral("databaseRequest"),
+            QJsonObject { { "session", static_cast<double>(op->sessionId) } })) {
+        finishLocal(op, false, tr("Could not reach the peer."));
         return false;
     }
 
-    updateStage(QStringLiteral("waiting"));
+    op->deadlineMs = nowMs() + kResponseTimeoutMs;
+    setStage(op, QStringLiteral("waiting"));
     emit statusMessage(tr("Asked %1 for its database…").arg(peerId.left(8)), 5000);
-
-    // Without a deadline a silent peer would hold the operation slot forever.
-    QTimer::singleShot(kResponseTimeoutMs, this, [this, peerId]() {
-        if (busy_.load() && pendingPeer_ == peerId && status().stage == QStringLiteral("waiting"))
-            finishOperation(false, tr("The peer did not answer."));
-    });
     return true;
-}
-
-void DatabaseSyncService::handlePeerRequest(const QString& peerId, const QJsonObject& /*data*/)
-{
-    auto refuse = [this, &peerId](const QString& reason) {
-        if (transport_) {
-            transport_->sendMessage(peerId, QStringLiteral("databaseRequest_response"),
-                QJsonObject { { "accepted", false }, { "reason", reason } });
-        }
-    };
-
-    if (!sharingEnabled_) {
-        refuse(QStringLiteral("sharing disabled"));
-        return;
-    }
-    if (!transport_ || !transport_->isFileTransferAvailable()) {
-        refuse(QStringLiteral("file transfer unavailable"));
-        return;
-    }
-    if (isBusy()) {
-        refuse(QStringLiteral("busy"));
-        return;
-    }
-
-    const qint64 torrents = repository_ ? repository_->statistics().torrents : 0;
-    if (torrents <= 0) {
-        refuse(QStringLiteral("empty database"));
-        return;
-    }
-
-    const QString path = sharePathFor(peerId);
-    QDir().mkpath(transferDirectory());
-    QString error;
-    if (!beginOperation(Operation::PeerServe, path, peerId, &error)) {
-        refuse(QStringLiteral("busy"));
-        return;
-    }
-
-    transport_->sendMessage(peerId, QStringLiteral("databaseRequest_response"),
-        QJsonObject { { "accepted", true }, { "torrents", static_cast<double>(torrents) },
-            { "format", static_cast<int>(dump::kFormatVersion) } });
-
-    qInfo() << "[DatabaseSync] serving" << torrents << "torrents to" << peerId.left(8);
-    emit statusMessage(tr("Sharing the database with %1…").arg(peerId.left(8)), 5000);
-    worker_ = QtConcurrent::run([this, path, peerId]() { runExport(path, peerId); });
 }
 
 void DatabaseSyncService::handlePeerResponse(const QString& peerId, const QJsonObject& data)
 {
-    // Only the peer we actually asked can move this state machine.
-    if (pendingPeer_.isEmpty() || peerId != pendingPeer_)
+    const LocalPtr op = local_;
+    if (!op || op->operation != Operation::PeerPull || op->peerId != peerId)
         return;
+    if (data["session"].toVariant().toULongLong() != op->sessionId)
+        return; // an answer to an attempt we have already abandoned
 
     if (!data["accepted"].toBool(false)) {
         const QString reason = data["reason"].toString();
-        finishOperation(false,
-            reason.isEmpty() ? tr("The peer refused to share its database.")
-                             : tr("The peer refused to share its database: %1").arg(reason));
+        const int retryAfter = data["retryAfter"].toInt();
+        QString message = reason.isEmpty() ? tr("The peer refused to share its database.")
+                                           : tr("The peer refused to share its database: %1").arg(reason);
+        if (retryAfter > 0)
+            message += QLatin1Char(' ') + tr("Try again in %n second(s).", nullptr, retryAfter);
+        finishLocal(op, false, message);
         return;
     }
 
     {
         QMutexLocker lock(&mutex_);
         status_.total = data["torrents"].toVariant().toLongLong();
+        status_.totalBytes = data["bytes"].toVariant().toLongLong();
     }
-    updateStage(QStringLiteral("preparing"));
+
+    op->peerEngaged = true;
+
+    if (data["ready"].toBool(false)) {
+        // The peer already has a snapshot; the offer is seconds away.
+        op->deadlineMs = nowMs() + kOfferTimeoutMs;
+        setStage(op, QStringLiteral("awaitingOffer"));
+        return;
+    }
+
+    // The peer has to build one. From here the deadline measures silence and is
+    // pushed forward by every heartbeat.
+    op->deadlineMs = nowMs() + kPrepareSilenceMs;
+    setStage(op, QStringLiteral("preparing"));
     emit statusMessage(tr("%1 is preparing its database…").arg(peerId.left(8)), 5000);
-
-    // The peer now exports its whole index, which is slow; give it a long but
-    // finite window to produce the offer.
-    QTimer::singleShot(kOfferTimeoutMs, this, [this, peerId]() {
-        if (busy_.load() && pendingPeer_ == peerId && incomingTransferId_ == 0)
-            finishOperation(false, tr("The peer never sent its database."));
-    });
 }
 
-void DatabaseSyncService::onFileOffered(const QString& peerId, quint64 transferId, const QString& name, qint64 size)
+void DatabaseSyncService::handlePeerProgress(const QString& peerId, const QJsonObject& data)
 {
-    // An unsolicited multi-gigabyte file is exactly what this check exists for:
-    // accept only from the peer we asked, and only while we are waiting for it.
-    const Status current = status();
-    if (current.operation != Operation::PeerPull || peerId != pendingPeer_ || incomingTransferId_ != 0) {
-        if (transport_)
-            transport_->rejectFile(peerId, transferId);
-        qInfo() << "[DatabaseSync] rejected unsolicited file offer" << name << "from" << peerId.left(8);
+    const LocalPtr op = local_;
+    if (!op || op->operation != Operation::PeerPull || op->peerId != peerId)
         return;
-    }
+    if (data["session"].toVariant().toULongLong() != op->sessionId)
+        return;
 
-    QDir().mkpath(transferDirectory());
-    const QString destination = incomingPathFor(peerId);
-    incomingTransferId_ = transferId;
-
+    op->deadlineMs = nowMs() + kPrepareSilenceMs;
     {
         QMutexLocker lock(&mutex_);
-        status_.path = destination;
-        status_.totalBytes = size;
+        status_.processed = data["processed"].toVariant().toLongLong();
+        const qint64 total = data["total"].toVariant().toLongLong();
+        if (total > 0)
+            status_.total = total;
     }
-
-    if (!transport_->acceptFile(peerId, transferId, destination)) {
-        incomingTransferId_ = 0;
-        finishOperation(false, tr("Could not accept the database transfer."));
-        return;
-    }
-    updateStage(QStringLiteral("transferring"));
+    setStage(op, QStringLiteral("preparing"));
 }
 
-void DatabaseSyncService::onTransferProgress(
-    const QString& peerId, quint64 transferId, bool sending, qint64 transferred, qint64 total, double bytesPerSec)
+void DatabaseSyncService::startPullImport(const LocalPtr& op, const QString& dumpPath)
 {
-    Q_UNUSED(peerId);
-    Q_UNUSED(bytesPerSec);
-    if (transferId != incomingTransferId_ && transferId != outgoingTransferId_)
-        return;
-    if (sending && transferId != outgoingTransferId_)
-        return;
-
-    {
-        QMutexLocker lock(&mutex_);
-        status_.bytes = transferred;
-        status_.totalBytes = total;
-    }
-    publishProgress();
-}
-
-void DatabaseSyncService::onTransferFinished(quint64 transferId, bool success, const QString& path)
-{
-    if (transferId != 0 && transferId == outgoingTransferId_) {
-        // We were the sender: the temp dump has done its job either way.
-        if (!outgoingPath_.isEmpty())
-            QFile::remove(outgoingPath_);
-        outgoingPath_.clear();
-        outgoingTransferId_ = 0;
-        finishOperation(success, success ? QString() : tr("The transfer failed."));
-        return;
-    }
-
-    if (transferId == 0 || transferId != incomingTransferId_)
-        return;
-
-    incomingTransferId_ = 0;
-    pendingPeer_.clear();
-
-    if (!success) {
-        finishOperation(false, tr("The database transfer failed."));
-        return;
-    }
-
-    // Straight into the merge, keeping the same operation slot: a received dump
-    // that is never imported is just a temp file nobody asked for.
-    const QString dumpPath = path.isEmpty() ? status().path : path;
-    ImportOptions options = pendingImportOptions_;
+    ImportOptions options = op->importOptions;
+    // Kept, not forced off: an import of a received dump that is interrupted
+    // half-way should be resumable like any other, and the file is only deleted
+    // once it has actually been merged in full.
+    options.resume = true;
     options.removeWhenDone = true;
-    options.resume = false;
 
     {
         QMutexLocker lock(&mutex_);
@@ -659,37 +672,481 @@ void DatabaseSyncService::onTransferFinished(quint64 transferId, bool success, c
         status_.path = dumpPath;
         status_.processed = 0;
     }
-    worker_ = QtConcurrent::run([this, dumpPath, options]() { runImport(dumpPath, options); });
+    op->operation = Operation::Import;
+    op->deadlineMs = 0;
+    op->worker = QtConcurrent::run([this, op, dumpPath, options]() { runImport(op, dumpPath, options); });
+}
+
+// ===========================================================================
+// Serving other peers
+// ===========================================================================
+
+void DatabaseSyncService::refuse(const QString& peerId, quint64 sessionId, const QString& reason, int retryAfterSecs)
+{
+    if (!transport_)
+        return;
+    QJsonObject payload { { "session", static_cast<double>(sessionId) }, { "accepted", false }, { "reason", reason } };
+    if (retryAfterSecs > 0)
+        payload["retryAfter"] = retryAfterSecs;
+    transport_->sendMessage(peerId, QStringLiteral("databaseRequest_response"), payload);
+}
+
+void DatabaseSyncService::handlePeerRequest(const QString& peerId, const QJsonObject& data)
+{
+    const quint64 sessionId = data["session"].toVariant().toULongLong();
+
+    if (!sharingEnabled_) {
+        refuse(peerId, sessionId, QStringLiteral("sharing disabled"));
+        return;
+    }
+    if (!transport_ || !transport_->isFileTransferAvailable()) {
+        refuse(peerId, sessionId, QStringLiteral("file transfer unavailable"));
+        return;
+    }
+
+    const qint64 torrents = repository_ ? repository_->statistics().torrents : 0;
+    if (torrents <= 0) {
+        refuse(peerId, sessionId, QStringLiteral("empty database"));
+        return;
+    }
+
+    const qint64 now = nowMs();
+    const qint64 last = lastRequestMs_.value(peerId, 0);
+    if (last != 0 && now - last < kMinRequestIntervalMs && !serves_.contains(peerId)) {
+        refuse(peerId, sessionId, QStringLiteral("too many requests"),
+            static_cast<int>((kMinRequestIntervalMs - (now - last)) / 1000) + 1);
+        return;
+    }
+
+    // A repeat request from a peer we are already serving replaces the old serve:
+    // the peer restarted its attempt, so the transfer it is no longer expecting is
+    // dead weight. The snapshot is explicitly *not* released — this peer is about
+    // to become a waiter again, and letting the drop stop the generation would
+    // cancel the very snapshot the new request needs.
+    if (serves_.contains(peerId))
+        dropServe(peerId, false, QStringLiteral("superseded by a new request"), /*releaseSnapshot*/ false);
+
+    if (serves_.size() >= kMaxConcurrentServes) {
+        refuse(peerId, sessionId, QStringLiteral("busy"), 60);
+        return;
+    }
+
+    lastRequestMs_.insert(peerId, now);
+
+    Serve serve;
+    serve.peerId = peerId;
+    serve.sessionId = sessionId;
+    serve.startedMs = now;
+
+    if (snapshot_.isFresh(torrents)) {
+        const DatabaseSnapshot::Info info = snapshot_.info();
+        transport_->sendMessage(peerId, QStringLiteral("databaseRequest_response"),
+            QJsonObject { { "session", static_cast<double>(sessionId) }, { "accepted", true }, { "ready", true },
+                { "torrents", static_cast<double>(info.torrents) }, { "bytes", static_cast<double>(info.bytes) },
+                { "format", static_cast<int>(dump::kFormatVersion) } });
+        serves_.insert(peerId, serve);
+        offerSnapshot(serves_[peerId]);
+        return;
+    }
+
+    if (!ensureSnapshotJob()) {
+        refuse(peerId, sessionId, QStringLiteral("cannot prepare a database snapshot"), 300);
+        return;
+    }
+
+    serve.waitingForSnapshot = true;
+    serves_.insert(peerId, serve);
+
+    transport_->sendMessage(peerId, QStringLiteral("databaseRequest_response"),
+        QJsonObject { { "session", static_cast<double>(sessionId) }, { "accepted", true }, { "ready", false },
+            { "torrents", static_cast<double>(torrents) }, { "format", static_cast<int>(dump::kFormatVersion) } });
+
+    qInfo() << "[DatabaseSync]" << peerId.left(8) << "is waiting for a snapshot of" << torrents << "torrents";
+    emit statusMessage(tr("Preparing the database for %1…").arg(peerId.left(8)), 5000);
+    publishServe();
+}
+
+void DatabaseSyncService::handlePeerCancel(const QString& peerId, const QJsonObject& data)
+{
+    auto it = serves_.find(peerId);
+    if (it == serves_.end())
+        return;
+    if (data.contains("session") && data["session"].toVariant().toULongLong() != it->sessionId)
+        return;
+    qInfo() << "[DatabaseSync]" << peerId.left(8) << "cancelled its database request";
+    dropServe(peerId, false, QStringLiteral("cancelled by the peer"));
+}
+
+void DatabaseSyncService::offerSnapshot(Serve& serve)
+{
+    if (!transport_ || !transport_->isFileTransferAvailable()) {
+        dropServe(serve.peerId, false, QStringLiteral("file transfer unavailable"));
+        return;
+    }
+    const QString file = snapshot_.path();
+    if (file.isEmpty()) {
+        dropServe(serve.peerId, false, QStringLiteral("no snapshot to serve"));
+        return;
+    }
+    serve.waitingForSnapshot = false;
+    // Remember *which* generation this peer is reading. A later generation can be
+    // published while this transfer is still running, and the prune must not pull
+    // the file out from under it.
+    serve.file = file;
+    serve.transferId = transport_->sendFile(serve.peerId, file);
+    if (serve.transferId == 0) {
+        dropServe(serve.peerId, false, QStringLiteral("could not offer the snapshot"));
+        return;
+    }
+    qInfo() << "[DatabaseSync] offering" << QFileInfo(file).size() << "bytes to" << serve.peerId.left(8);
+    publishServe();
+}
+
+bool DatabaseSyncService::ensureSnapshotJob()
+{
+    if (snapshotJob_)
+        return true;
+    if (!repository_)
+        return false;
+
+    const qint64 torrents = repository_->statistics().torrents;
+    const qint64 needed = static_cast<qint64>(torrents * snapshot_.bytesPerTorrent() * kFreeSpaceMargin);
+    const qint64 free = availableBytes(transferDirectory());
+    if (free >= 0 && free < needed) {
+        qWarning() << "[DatabaseSync] not generating a snapshot:" << (needed / (1024 * 1024)) << "MB needed,"
+                   << (free / (1024 * 1024)) << "MB free";
+        return false;
+    }
+
+    auto job = std::make_shared<SnapshotJob>();
+    job->id = ++nextSnapshotJobId_;
+    job->total = torrents;
+    snapshotJob_ = job;
+    job->worker = QtConcurrent::run([this, job]() { runSnapshot(job); });
+    publishServe();
+    return true;
+}
+
+void DatabaseSyncService::pruneSnapshots()
+{
+    QSet<QString> inUse;
+    for (const Serve& serve : serves_) {
+        if (!serve.file.isEmpty())
+            inUse.insert(serve.file);
+    }
+    snapshot_.pruneSuperseded(inUse);
+}
+
+void DatabaseSyncService::cancelSnapshotIfUnwanted()
+{
+    if (!snapshotJob_)
+        return;
+    for (const Serve& serve : serves_) {
+        if (serve.waitingForSnapshot)
+            return;
+    }
+    // Nobody is waiting any more. Finishing the export would spend minutes of disk
+    // and CPU on a file no peer is going to ask for — which is exactly the work the
+    // old design kept doing after its requester had already given up.
+    qInfo() << "[DatabaseSync] no peers left waiting; stopping snapshot generation";
+    snapshotJob_->cancel.cancel();
+}
+
+void DatabaseSyncService::runSnapshot(const SnapshotPtr& job)
+{
+    dump::Header header;
+    header.client = clientVersion_;
+    header.peerId = transport_ ? transport_->ourPeerId() : QString();
+    header.created = QDateTime::currentDateTime();
+    header.torrents = repository_->statistics().torrents;
+
+    qint64 lastPublish = 0;
+
+    DatabaseExporter exporter(repository_);
+    const DatabaseExporter::Result result = exporter.run(
+        snapshot_.temporaryPath(), header, job->cancel, [this, job, &lastPublish](qint64 torrents, qint64 bytes) {
+            Q_UNUSED(bytes);
+            {
+                QMutexLocker lock(&mutex_);
+                job->processed = torrents;
+            }
+            const qint64 now = nowMs();
+            if (now - lastPublish < kProgressIntervalMs)
+                return;
+            lastPublish = now;
+            QMetaObject::invokeMethod(this, [this]() { publishServe(); }, Qt::QueuedConnection);
+        });
+
+    QMetaObject::invokeMethod(
+        this, [this, job, result]() { onSnapshotFinished(job, result.ok, result.torrents, result.error); },
+        Qt::QueuedConnection);
+}
+
+void DatabaseSyncService::onSnapshotFinished(const SnapshotPtr& job, bool ok, qint64 torrents, const QString& error)
+{
+    // A job that is no longer the current one has been superseded or shut down. It
+    // must not publish: both jobs write the same temporary path, so letting a stale
+    // one commit would hand peers a half-written file.
+    if (snapshotJob_ != job) {
+        QFile::remove(snapshot_.temporaryPath());
+        return;
+    }
+    snapshotJob_.reset();
+
+    QString commitError;
+    if (ok)
+        ok = snapshot_.commit(torrents, &commitError);
+    else
+        QFile::remove(snapshot_.temporaryPath());
+
+    if (!ok) {
+        const QString reason = error.isEmpty() ? commitError : error;
+        qWarning() << "[DatabaseSync] snapshot generation failed:" << reason;
+        const QStringList waiting = serves_.keys();
+        for (const QString& peerId : waiting) {
+            // find(), not operator[]: the latter inserts a default Serve for a key
+            // an earlier iteration removed, conjuring a peer we are not serving.
+            const auto it = serves_.constFind(peerId);
+            if (it != serves_.constEnd() && it->waitingForSnapshot)
+                dropServe(peerId, false, reason.isEmpty() ? QStringLiteral("snapshot failed") : reason);
+        }
+        publishServe();
+        return;
+    }
+
+    pruneSnapshots();
+
+    // One export, every waiter served from it — the point of the whole snapshot.
+    const QStringList waiting = serves_.keys();
+    for (const QString& peerId : waiting) {
+        auto it = serves_.find(peerId);
+        if (it != serves_.end() && it->waitingForSnapshot)
+            offerSnapshot(*it);
+    }
+    publishServe();
+}
+
+void DatabaseSyncService::dropServe(QString peerId, bool success, const QString& reason, bool releaseSnapshot)
+{
+    auto it = serves_.find(peerId);
+    if (it == serves_.end())
+        return;
+
+    const Serve serve = *it;
+    serves_.erase(it);
+
+    if (transport_ && serve.transferId != 0 && !success)
+        transport_->cancelFile(peerId, serve.transferId);
+
+    // The live snapshot is never removed here: it is shared, and outliving any one
+    // peer's transfer is the whole point of it. A *superseded* generation this
+    // peer was the last reader of can go now.
+    if (releaseSnapshot)
+        cancelSnapshotIfUnwanted();
+    pruneSnapshots();
+
+    QJsonObject summary { { "peer", peerId }, { "reason", reason } };
+    emit serveFinished(peerId, success, summary);
+    publishServe();
+}
+
+bool DatabaseSyncService::rebuildSnapshot(QString* error)
+{
+    if (snapshotJob_) {
+        if (error)
+            *error = tr("A database snapshot is already being prepared.");
+        return false;
+    }
+    // Deliberately does *not* discard the current snapshot first. Peers keep being
+    // served from it while the replacement builds, and the commit supersedes it
+    // atomically — discarding up front would strand anyone mid-download and, on
+    // Windows, fail to delete the open file anyway.
+    if (!ensureSnapshotJob()) {
+        if (error)
+            *error = tr("Could not start preparing a database snapshot.");
+        return false;
+    }
+    return true;
+}
+
+// ===========================================================================
+// Transfers
+// ===========================================================================
+
+void DatabaseSyncService::onFileOffered(const QString& peerId, quint64 transferId, const QString& name, qint64 size)
+{
+    const LocalPtr op = local_;
+    // An unsolicited multi-gigabyte file is exactly what this check exists for:
+    // accept only from the peer we asked, and only while we are waiting for it.
+    if (!op || op->operation != Operation::PeerPull || op->peerId != peerId || op->transferId != 0) {
+        if (transport_)
+            transport_->rejectFile(peerId, transferId);
+        qInfo() << "[DatabaseSync] rejected unsolicited file offer" << name << "from" << peerId.left(8);
+        return;
+    }
+
+    const QString destination = incomingPathFor(peerId);
+    const qint64 free = availableBytes(transferDirectory());
+    if (free >= 0 && free < size) {
+        transport_->rejectFile(peerId, transferId);
+        finishLocal(op, false,
+            tr("Not enough free space for the database: %1 MB needed, %2 MB available.")
+                .arg(size / (1024 * 1024))
+                .arg(free / (1024 * 1024)));
+        return;
+    }
+
+    op->transferId = transferId;
+    op->deadlineMs = 0; // the transfer has its own idle timeout in librats
+    {
+        QMutexLocker lock(&mutex_);
+        status_.path = destination;
+        status_.totalBytes = size;
+    }
+
+    if (!transport_->acceptFile(peerId, transferId, destination)) {
+        op->transferId = 0;
+        finishLocal(op, false, tr("Could not accept the database transfer."));
+        return;
+    }
+    setStage(op, QStringLiteral("transferring"));
+}
+
+void DatabaseSyncService::onTransferProgress(
+    const QString& peerId, quint64 transferId, bool sending, qint64 transferred, qint64 total, double bytesPerSec)
+{
+    Q_UNUSED(bytesPerSec);
+
+    if (sending) {
+        auto it = serves_.find(peerId);
+        if (it == serves_.end() || it->transferId != transferId)
+            return;
+        const qint64 now = nowMs();
+        if (now - lastProgressPublishMs_ >= kProgressIntervalMs) {
+            lastProgressPublishMs_ = now;
+            publishServe();
+        }
+        return;
+    }
+
+    const LocalPtr op = local_;
+    if (!op || op->peerId != peerId || op->transferId != transferId)
+        return;
+    {
+        QMutexLocker lock(&mutex_);
+        status_.bytes = transferred;
+        status_.totalBytes = total;
+    }
+    const qint64 now = nowMs();
+    if (now - lastProgressPublishMs_ >= kProgressIntervalMs) {
+        lastProgressPublishMs_ = now;
+        publishLocal();
+    }
+}
+
+void DatabaseSyncService::onTransferFinished(
+    const QString& peerId, quint64 transferId, bool success, const QString& path)
+{
+    // Matching on the (peer, id) pair, never on the id alone: transfer ids are
+    // allocated by the sender, so a stranger's transfer 1 and ours collide
+    // routinely — and matching loosely used to abort a live download because some
+    // unrelated peer's offer had been rejected.
+    auto serve = serves_.find(peerId);
+    if (serve != serves_.end() && serve->transferId == transferId) {
+        if (success)
+            qInfo() << "[DatabaseSync] sent the database to" << peerId.left(8);
+        // Background lane: logged and reported, never raised to the user.
+        dropServe(peerId, success, success ? QString() : QStringLiteral("transfer failed"));
+        return;
+    }
+
+    const LocalPtr op = local_;
+    if (!op || op->peerId != peerId || op->transferId != transferId)
+        return;
+
+    op->transferId = 0;
+    if (!success) {
+        finishLocal(op, false, tr("The database transfer failed."));
+        return;
+    }
+
+    // Straight into the merge, keeping the same operation: a received dump that is
+    // never imported is just a temp file nobody asked for.
+    startPullImport(op, path.isEmpty() ? status().path : path);
 }
 
 void DatabaseSyncService::onPeerDisconnected(const QString& peerId)
 {
-    if (!busy_.load())
+    if (serves_.contains(peerId))
+        dropServe(peerId, false, QStringLiteral("the peer disconnected"));
+
+    const LocalPtr op = local_;
+    if (!op || op->operation != Operation::PeerPull || op->peerId != peerId)
         return;
-    const Status current = status();
-    if (current.operation == Operation::PeerPull && peerId == pendingPeer_) {
-        finishOperation(false, tr("The peer disconnected."));
-        return;
-    }
-    if (current.operation == Operation::PeerServe && peerId == current.peerId) {
-        if (!outgoingPath_.isEmpty())
-            QFile::remove(outgoingPath_);
-        finishOperation(false, tr("The peer disconnected."));
-    }
+    // Only the *pull* dies with the peer. Once the dump is on disk the import is
+    // ours and finishes regardless of who we got it from.
+    finishLocal(op, false, tr("The peer disconnected."));
 }
 
 // ===========================================================================
-// Paths and resume state
+// Watchdog
+// ===========================================================================
+
+void DatabaseSyncService::onWatchdog()
+{
+    const qint64 now = nowMs();
+
+    // Heartbeat to everyone waiting on a snapshot we are building. This is what
+    // lets their deadline measure silence instead of the size of our index.
+    if (snapshotJob_ && now - lastHeartbeatMs_ >= kHeartbeatMs) {
+        lastHeartbeatMs_ = now;
+        qint64 processed = 0;
+        qint64 total = 0;
+        {
+            QMutexLocker lock(&mutex_);
+            processed = snapshotJob_->processed;
+            total = snapshotJob_->total;
+        }
+        if (transport_) {
+            for (const Serve& serve : serves_) {
+                if (!serve.waitingForSnapshot)
+                    continue;
+                transport_->sendMessage(serve.peerId, QStringLiteral("databaseProgress"),
+                    QJsonObject { { "session", static_cast<double>(serve.sessionId) },
+                        { "processed", static_cast<double>(processed) }, { "total", static_cast<double>(total) } });
+            }
+        }
+    }
+
+    // The rate-limit table is keyed by peer id, so without pruning it grows for
+    // the life of the process on a node that many peers ask.
+    for (auto it = lastRequestMs_.begin(); it != lastRequestMs_.end();) {
+        if (now - it.value() > kMinRequestIntervalMs * 20)
+            it = lastRequestMs_.erase(it);
+        else
+            ++it;
+    }
+
+    const LocalPtr op = local_;
+    if (!op || op->deadlineMs == 0 || now < op->deadlineMs)
+        return;
+
+    const QString stage = status().stage;
+    if (stage == QLatin1String("waiting"))
+        finishLocal(op, false, tr("The peer did not answer."));
+    else if (stage == QLatin1String("awaitingOffer"))
+        finishLocal(op, false, tr("The peer said its database was ready but never sent it."));
+    else
+        finishLocal(op, false, tr("The peer stopped responding while preparing its database."));
+}
+
+// ===========================================================================
+// Paths, housekeeping, resume state
 // ===========================================================================
 
 QString DatabaseSyncService::transferDirectory() const
 {
     return QDir(dataDirectory_).absoluteFilePath(QStringLiteral("dbsync"));
-}
-
-QString DatabaseSyncService::sharePathFor(const QString& peerId) const
-{
-    return QDir(transferDirectory()).absoluteFilePath(QStringLiteral("share-%1.ratsdb").arg(peerId.left(16)));
 }
 
 QString DatabaseSyncService::incomingPathFor(const QString& peerId) const
@@ -702,9 +1159,47 @@ QString DatabaseSyncService::resumeStatePath() const
     return QDir(transferDirectory()).absoluteFilePath(QStringLiteral("import-state.json"));
 }
 
+qint64 DatabaseSyncService::availableBytes(const QString& path)
+{
+    const QStorageInfo storage(path);
+    if (!storage.isValid() || !storage.isReady())
+        return -1;
+    return storage.bytesAvailable();
+}
+
+void DatabaseSyncService::sweepTransferDirectory() const
+{
+    // Nothing in here is precious except the snapshot and an import that can still
+    // be resumed. Everything else is the wreckage of a crash or a cancelled
+    // transfer, and it used to accumulate for the life of the installation.
+    const QJsonObject pending = pendingImportJson();
+    const QString keep = pending.isEmpty() ? QString() : pending["path"].toString();
+
+    const QDir dir(transferDirectory());
+    const QDateTime cutoff = QDateTime::currentDateTime().addSecs(-kStaleFileAgeSecs);
+
+    int removed = 0;
+    const QFileInfoList entries = dir.entryInfoList(QDir::Files);
+    for (const QFileInfo& entry : entries) {
+        const QString name = entry.fileName();
+        if (DatabaseSnapshot::isSnapshotFile(name) || name == QLatin1String("import-state.json"))
+            continue;
+        if (!keep.isEmpty() && entry.absoluteFilePath() == keep)
+            continue;
+        // share-*.ratsdb is from the per-request export this service no longer
+        // does; those are dead on arrival whatever their age.
+        const bool legacy = name.startsWith(QLatin1String("share-"));
+        if (!legacy && entry.lastModified() > cutoff)
+            continue;
+        if (QFile::remove(entry.absoluteFilePath()))
+            ++removed;
+    }
+    if (removed > 0)
+        qInfo() << "[DatabaseSync] swept" << removed << "stale files from" << dir.absolutePath();
+}
+
 void DatabaseSyncService::saveResumeState(const QString& path, qint64 offset, qint64 fileSize) const
 {
-    QDir().mkpath(transferDirectory());
     QFile file(resumeStatePath());
     if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate))
         return;
@@ -719,8 +1214,8 @@ qint64 DatabaseSyncService::loadResumeOffset(const QString& path, qint64 fileSiz
     if (!file.open(QIODevice::ReadOnly))
         return 0;
     const QJsonObject obj = QJsonDocument::fromJson(file.readAll()).object();
-    // A different file, or the same name with different contents, is not a
-    // resume point — restart rather than seeking into the middle of a frame.
+    // A different file, or the same name with different contents, is not a resume
+    // point — restart rather than seeking into the middle of a frame.
     if (obj["path"].toString() != path || obj["size"].toVariant().toLongLong() != fileSize)
         return 0;
     return obj["offset"].toVariant().toLongLong();

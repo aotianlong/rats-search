@@ -122,8 +122,9 @@ See [WebSocket Events](#websocket-events) for details.
 | `database.import` | Merge a `.ratsdb` dump into the index |
 | `database.pull` | Ask a connected peer for its whole index |
 | `database.peers` | Connected peers that will actually serve their index |
-| `database.status` | Current state of the running database sync |
-| `database.cancel` | Stop the running database sync |
+| `database.status` | Current state of the local operation, the serving lane and the snapshot |
+| `database.cancel` | Stop the local database operation |
+| `database.snapshot` | Rebuild the dump served to peers, now |
 | `download.add` | Start downloading (hash or magnet) |
 | `download.addFile` | Start downloading from a `.torrent` file |
 | `download.pause` | Pause a download |
@@ -410,9 +411,24 @@ file share, USB stick, torrent) or move directly between two peers. Importing
 incoming copy adds (a file list for a metadata-only row, higher vote counts), and
 new ones go in through the same `IndexingService` path a crawled torrent does.
 
-Only one database operation runs at a time. All three starting methods return
-immediately with the sync status; progress arrives as `databaseSyncProgress`
-WebSocket events and the outcome as `databaseSyncFinished`.
+There are **two independent lanes**, and they report separately.
+
+*Local* is what this user asked for — export, import, or a pull from a peer. One
+at a time. It returns immediately with the sync status; progress arrives as
+`databaseSyncProgress` events and the outcome as `databaseSyncFinished`.
+
+*Serving* is what other peers asked for. It runs in the background, does not block
+the local lane, and reports through `databaseServeProgress` /
+`databaseServeFinished`. A client must never surface a serving failure as the
+user's own: the peer at the other end gave up on a download, which is not this
+user's problem.
+
+Serving is answered from a **snapshot** — one dump kept in `<dataDir>/dbsync/` and
+handed to every peer that asks. It is rebuilt when it ages past
+`databaseSnapshotMaxAgeHours` (default 6) or when the index has drifted more than
+`databaseSnapshotMaxDriftPercent` (default 10) away from it. This is why a pull is
+usually near-instant: nothing is exported per request, and five peers asking cost
+one export rather than five.
 
 #### `database.export` - Write the index to a dump file
 
@@ -458,9 +474,21 @@ GET http://localhost:8095/api/database.pull?peer=ab12cd34…
 | `peer` (or `peerId`) | string | yes | | Peer id from `peers.list` |
 | `applyFilters` | bool | no | `true` | Filter policy for the merge that follows |
 
-The peer answers over P2P (`databaseRequest` / `databaseRequest_response`), then
-exports its index and sends the dump over the librats file transfer; it arrives
-in `<dataDir>/dbsync/`, is merged, and is deleted. The peer only agrees when it
+The peer answers over P2P (`databaseRequest` / `databaseRequest_response`) and
+then sends its snapshot over the librats file transfer; it arrives in
+`<dataDir>/dbsync/`, is merged, and is deleted once fully merged (an interrupted
+merge keeps the file and can be resumed — see `pendingImport` in
+`database.status`).
+
+The response says whether the snapshot is `ready`. If it is, the file offer
+follows within seconds. If it is not, the peer builds one and heartbeats its
+progress as `databaseProgress` while it works, and those heartbeats are what our
+deadline watches. **Every timeout here measures silence, not work** — how long a
+peer needs to build a snapshot depends on the size of its index, so no fixed
+timeout could be correct for both a 50k and a 3M-row database, whereas how long it
+may go quiet does not depend on size at all. Giving up (or `database.cancel`) sends
+`databaseCancel`, so the peer stops building and frees its serving slot instead of
+finishing an export nobody is waiting for. The peer only agrees when it
 has the `databaseSharing` config key enabled — **on by default**, and advertised
 in the handshake, so use `database.peers` rather than `peers.list` to pick a
 target and a refusal becomes the exception rather than the rule. There is no
@@ -529,15 +557,44 @@ GET http://localhost:8095/api/database.status
         "merged": 3600,
         "rejected": 0,
         "bytes": 4194304,
-        "totalBytes": 16777216
+        "totalBytes": 16777216,
+        "sharing": true,
+        "serve": {
+            "generating": false,
+            "processed": 0,
+            "total": 0,
+            "waiting": 0,
+            "sending": 2
+        },
+        "snapshot": {
+            "valid": true,
+            "torrents": 184320,
+            "bytes": 94371840,
+            "created": "2026-08-29T09:14:22",
+            "fresh": true
+        },
+        "pendingImport": {
+            "path": "…/dbsync/incoming-ab12cd34.ratsdb",
+            "offset": 8388608,
+            "size": 94371840
+        }
     }
 }
 ```
 
-`operation` is one of `idle`, `export`, `import`, `peerPull`, `peerServe`;
-`stage` is `exporting`, `waiting`, `preparing`, `transferring`, `importing`,
-`cancelling`, `done` or `failed`. `processed`/`total` count torrents,
-`bytes`/`totalBytes` count bytes of the dump or transfer.
+The top-level fields describe the **local** operation. `operation` is one of
+`idle`, `export`, `import`, `peerPull`; `stage` is `exporting`, `waiting` (for an
+answer), `preparing` (the peer is building its snapshot), `awaitingOffer`,
+`transferring`, `importing`, `cancelling`, `done` or `failed`. `processed`/`total`
+count torrents, `bytes`/`totalBytes` count bytes of the dump or transfer.
+
+`serve` describes the **serving** lane: whether a snapshot is being generated and
+how far, how many peers are queued on it, and how many are receiving it.
+
+`snapshot` describes the dump on disk and whether it can be served as-is.
+
+`pendingImport` is present only when an import was interrupted and can be
+continued — pass its `path` to `database.import` to pick up where it stopped.
 
 ---
 
@@ -547,9 +604,25 @@ GET http://localhost:8095/api/database.status
 GET http://localhost:8095/api/database.cancel
 ```
 
-An export removes its partial file. An import keeps everything it already merged
-and saves a resume point, so re-running `database.import` on the same file
-continues where it stopped.
+Cancels the **local** operation only; peers we are serving are unaffected. An
+export removes its partial file. An import keeps everything it already merged and
+saves a resume point, so re-running `database.import` on the same file continues
+where it stopped. A pull additionally tells the peer to stop preparing.
+
+---
+
+#### `database.snapshot` - Rebuild the served dump now
+
+```
+GET http://localhost:8095/api/database.snapshot
+```
+
+Discards the current snapshot and starts building a fresh one. Rarely needed —
+the snapshot renews itself on age or drift — but it is the way to make recent
+crawling visible to peers immediately. Fails while a generation is already
+running.
+
+**Response** - the status object (see `database.status`).
 
 ---
 
@@ -842,9 +915,15 @@ Push events are broadcast to all connected WebSocket clients as `{ "event": name
 | `remoteSearchResults` | A peer answered a P2P search | `{ "searchId": "…", "torrents": [ …torrent objects… ] }` |
 | `torrentRemoveProgress` | Progress of a bulk `torrent.remove` | `{ "processed": 100, "removed": 98, "total": 500 }` |
 | `torrentCleanupProgress` | Progress of a `torrent.cleanup` sweep | `{ "scanned": 5000, "matched": 120, "total": 12045 }` |
-| `databaseSyncStarted` | A database export/import/peer transfer began | The status object from `database.status` |
-| `databaseSyncProgress` | The running database sync advanced | The status object from `database.status` |
-| `databaseSyncFinished` | The database sync ended | The status object plus `"success": true` and, on failure, `"error"` |
+| `databaseSyncStarted` | The **local** export/import/pull began | The status object from `database.status` |
+| `databaseSyncProgress` | The local operation advanced | The status object from `database.status` |
+| `databaseSyncFinished` | The local operation ended | The status object plus `"success": true` and, on failure, `"error"` |
+| `databaseServeProgress` | The **serving** lane advanced (snapshot generation, peers waiting/receiving) | The `serve` object from `database.status` |
+| `databaseServeFinished` | One peer's transfer ended | `peer`, `success`, and `reason` when it did not succeed |
+
+`databaseServe*` is informational. A serving failure means a peer gave up on a
+download from us; it is not a failure of anything the local user started, and
+surfacing it as one is a bug.
 
 ---
 

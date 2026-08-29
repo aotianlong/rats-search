@@ -57,7 +57,7 @@ void ConfigStore::setDefaults()
 
         // P2P
         { "p2pConnections", 10 }, { "p2pReplication", true }, { "p2pReplicationServer", true },
-        { "databaseSharing", true },
+        { "databaseSharing", true }, { "databaseSnapshotMaxAgeHours", 6 }, { "databaseSnapshotMaxDriftPercent", 10 },
 
         // Indexer
         { "indexer", true }, { "trackers", true }, { "restApi", false }, { "upnp", true }, { "holePunch", true },
@@ -266,6 +266,26 @@ bool ConfigStore::databaseSharing() const
 void ConfigStore::setDatabaseSharing(bool enabled)
 {
     setValue("databaseSharing", enabled);
+}
+
+int ConfigStore::databaseSnapshotMaxAgeHours() const
+{
+    // Clamped rather than trusted: a zero would rebuild the snapshot on every
+    // single request, which is the behaviour the snapshot exists to remove.
+    return qBound(1, config_["databaseSnapshotMaxAgeHours"].toInt(6), 24 * 30);
+}
+void ConfigStore::setDatabaseSnapshotMaxAgeHours(int hours)
+{
+    setValue("databaseSnapshotMaxAgeHours", hours);
+}
+
+int ConfigStore::databaseSnapshotMaxDriftPercent() const
+{
+    return qBound(1, config_["databaseSnapshotMaxDriftPercent"].toInt(10), 100);
+}
+void ConfigStore::setDatabaseSnapshotMaxDriftPercent(int percent)
+{
+    setValue("databaseSnapshotMaxDriftPercent", percent);
 }
 
 // ============================================================================
