@@ -129,9 +129,15 @@ void P2PTransport::Private::setupCallbacks()
     });
 
     // Disconnection callback. Runs on a reactor thread.
-    node->on_peer_disconnected([this](const librats::PeerId& id) {
+    node->on_peer_disconnected([this](const librats::PeerId& id, librats::CloseReason reason) {
         QString peerId = QString::fromStdString(id.to_hex());
-        qInfo() << "Peer disconnected:" << peerId.left(8) << "total peers:" << peerCount();
+        // The reason stays inside net/ — it is a librats type, and nothing above
+        // this layer knows one. Logging it here is the point of carrying it: a
+        // SlowConsumer drop and a peer that simply left are indistinguishable
+        // otherwise, which is exactly what made the storage-snapshot flapping
+        // read as an ordinary reconnect for as long as it did.
+        qInfo() << "Peer disconnected:" << peerId.left(8) << "reason:" << librats::to_string(reason)
+                << "total peers:" << peerCount();
         emit q->peerDisconnected(peerId);
         requestPeerCountUpdate();
     });
