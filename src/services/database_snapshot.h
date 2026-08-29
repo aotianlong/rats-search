@@ -50,7 +50,12 @@ public:
         qint64 minDriftTorrents = 500;
     };
 
-    DatabaseSnapshot(QString directory, Policy policy = {});
+    // Two overloads rather than a `Policy policy = {}` default argument: GCC delays
+    // parsing a nested class's default member initializers until the enclosing class
+    // is complete, so `{}` here is rejected as a conversion from an empty initializer
+    // list (MSVC accepts it, which is why this only broke the Linux build).
+    explicit DatabaseSnapshot(QString directory);
+    DatabaseSnapshot(QString directory, Policy policy);
 
     // Freshness is config-driven, and config arrives after construction.
     void setPolicy(const Policy& policy) { policy_ = policy; }

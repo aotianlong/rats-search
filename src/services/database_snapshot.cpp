@@ -31,6 +31,8 @@ QString nameFor(quint64 generation)
 
 } // namespace
 
+DatabaseSnapshot::DatabaseSnapshot(QString directory) : DatabaseSnapshot(std::move(directory), Policy()) { }
+
 DatabaseSnapshot::DatabaseSnapshot(QString directory, Policy policy) : directory_(std::move(directory)), policy_(policy)
 {
 }
