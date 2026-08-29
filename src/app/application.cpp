@@ -248,9 +248,11 @@ bool Application::start()
     // Blocking pre-start migrations run before anything reads the data. These are
     // housekeeping migrations, so a failure is non-fatal — but it must not pass
     // silently (the service logs the specific migration; we log the outcome).
-    // They finish before any GUI exists, so they can't be surfaced via signals;
-    // the async migrations below run while the window is up and ARE surfaced
-    // there.
+    // They run on this thread, before any window exists: a front-end that wants
+    // to show them (MigrationProgressWindow in GUI mode, a stdout bar in console
+    // mode) connects to MigrationService::syncMigrationStarted before start() is
+    // called and pumps the event queue itself. The async migrations below run
+    // while the window is up and are surfaced in its status bar.
     if (!d_->migrations->runSyncMigrations()) {
         qWarning() << "[Application] one or more synchronous migrations failed; "
                       "continuing startup";

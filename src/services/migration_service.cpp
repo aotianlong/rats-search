@@ -314,6 +314,7 @@ bool MigrationService::runSyncMigrations()
     qInfo() << "[Migration] running synchronous migrations...";
 
     bool allSuccess = true;
+    bool anyRan = false;
 
     for (const auto& migration : registeredMigrations_) {
         if (!migration.isSync) {
@@ -331,6 +332,20 @@ bool MigrationService::runSyncMigrations()
 
         qInfo() << "[Migration] running sync:" << migration.id << "-" << migration.description;
 
+        // Publish what is about to block startup before it starts blocking:
+        // a front-end connected to syncMigrationStarted gets to put its
+        // progress window on screen while the body still reports 0 of 0.
+        {
+            QMutexLocker locker(&stateMutex_);
+            currentProgress_.migrationId = migration.id;
+            currentProgress_.description = migration.description;
+            currentProgress_.current = 0;
+            currentProgress_.total = 0;
+            currentProgress_.isRunning = true;
+        }
+        anyRan = true;
+        emit syncMigrationStarted(migration.id, migration.description);
+
         const bool success = migration.syncBody ? migration.syncBody() : false;
 
         if (success) {
@@ -343,10 +358,29 @@ bool MigrationService::runSyncMigrations()
         }
     }
 
+    if (anyRan) {
+        {
+            QMutexLocker locker(&stateMutex_);
+            currentProgress_.isRunning = false;
+        }
+        emit syncMigrationsFinished();
+    }
+
     if (allSuccess) {
         qInfo() << "[Migration] all sync migrations completed successfully";
     }
     return allSuccess;
+}
+
+void MigrationService::reportProgress(const QString& migrationId, qint64 current, qint64 total)
+{
+    {
+        QMutexLocker locker(&stateMutex_);
+        currentProgress_.migrationId = migrationId;
+        currentProgress_.current = current;
+        currentProgress_.total = total;
+    }
+    emit migrationProgress(migrationId, current, total);
 }
 
 bool MigrationService::syncCleanupFeedStorage()
@@ -390,6 +424,19 @@ bool MigrationService::syncDeriveRowIds()
     // neither pass has to consult the other.
     const QStringList tables { QStringLiteral("torrents"), QStringLiteral("files") };
     constexpr int kPageSize = 500;
+    const QString kId = QStringLiteral("v2.2.8_sync_derive_row_ids");
+
+    // Row counts up front, so the progress a front-end shows is a fraction of the
+    // whole sweep rather than a counter climbing towards an unknown end. It is a
+    // snapshot: rows dropped along the way make the final count fall a little
+    // short of it, which is why the reported value is clamped below.
+    qint64 totalRows = 0;
+    if (db_) {
+        for (const QString& table : tables)
+            totalRows += db_->count(table);
+    }
+    qint64 processedRows = 0;
+    reportProgress(kId, 0, totalRows);
 
     for (const QString& table : tables) {
         qint64 cursor = 0;
@@ -419,6 +466,13 @@ bool MigrationService::syncDeriveRowIds()
             rewritten += page.rewritten;
             dropped += page.dropped;
 
+            // Ticked per page, not per log line: this migration blocks startup,
+            // so the front-end showing it needs an update often enough to look
+            // alive (a page is 500 rows of database work — the signal costs
+            // nothing next to it).
+            processedRows += page.scanned;
+            reportProgress(kId, qMin(processedRows, totalRows), totalRows);
+
             // A page that read rows but moved none is the tail of the sweep,
             // where everything is already re-keyed — still worth walking to the
             // end, since correctness must not rest on new ids always sorting
@@ -426,7 +480,6 @@ bool MigrationService::syncDeriveRowIds()
             if (scanned - lastLogged >= 50000) {
                 lastLogged = scanned;
                 qInfo() << "[Migration] v2.2.8:" << table << "-" << scanned << "scanned," << rewritten << "re-keyed";
-                emit migrationProgress(QStringLiteral("v2.2.8_sync_derive_row_ids"), rewritten, scanned);
             }
 
             if (stopRequested_.load()) {

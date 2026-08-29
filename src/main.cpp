@@ -10,6 +10,7 @@
 #include <iostream>
 #include <memory>
 #include <optional>
+#include <string>
 
 #include "app/application.h"
 #include "app/config_store.h"
@@ -19,6 +20,8 @@
 #include "common/logging.h"
 #include "librats/util/logger.h"
 #include "mainwindow.h"
+#include "migrationprogresswindow.h"
+#include "services/migration_service.h"
 #include "version.h"
 
 #ifdef _WIN32
@@ -162,6 +165,52 @@ static void configureLogging(const QString& dataDir)
     logStartupInfo(dataDir);
 }
 
+// Print the blocking pre-start migrations to stdout. They run inside
+// Application::start() and can take minutes on a large index; a daemon that
+// prints nothing for that long looks wedged. Only the sync migrations are drawn
+// — the background ones report through the same signal, but they run while the
+// daemon is serving and would scribble over its regular output.
+static void reportMigrationsToConsole(rats::app::Application* application)
+{
+    auto* migrations = application->migrations();
+    if (!migrations)
+        return;
+
+    struct DrawState {
+        bool active = false;
+        int lastPercent = -1;
+    };
+    auto state = std::make_shared<DrawState>();
+
+    QObject::connect(migrations, &rats::service::MigrationService::syncMigrationStarted, application,
+        [state](const QString&, const QString& description) {
+            state->active = true;
+            state->lastPercent = -1;
+            std::cout << "Data migration: " << description.toStdString() << std::endl;
+        });
+
+    QObject::connect(migrations, &rats::service::MigrationService::migrationProgress, application,
+        [state](const QString&, qint64 current, qint64 total) {
+            if (!state->active || total <= 0)
+                return;
+            const int percent = static_cast<int>((qMin(current, total) * 100) / total);
+            if (percent == state->lastPercent)
+                return;
+            state->lastPercent = percent;
+            constexpr int kBarWidth = 30;
+            const int filled = percent * kBarWidth / 100;
+            std::cout << "\r  [" << std::string(filled, '#') << std::string(kBarWidth - filled, '.') << "] " << percent
+                      << "%  " << current << '/' << total << "   " << std::flush;
+        });
+
+    QObject::connect(migrations, &rats::service::MigrationService::syncMigrationsFinished, application, [state]() {
+        if (state->lastPercent >= 0)
+            std::cout << std::endl;
+        state->active = false;
+        std::cout << "Data migration finished." << std::endl;
+    });
+}
+
 // Console mode on the new rats:: architecture: build the composition root,
 // start it, and run the event loop until interrupted. No widgets.
 static int runConsoleApplication(QCoreApplication& app, rats::app::Application::Options options)
@@ -172,6 +221,7 @@ static int runConsoleApplication(QCoreApplication& app, rats::app::Application::
     std::signal(SIGTERM, signalHandler);
 
     auto application = std::make_unique<rats::app::Application>(std::move(options));
+    reportMigrationsToConsole(application.get());
     if (!application->start()) {
         qCritical() << "Failed to start application";
         return 1;
@@ -265,6 +315,10 @@ int main(int argc, char* argv[])
 
     // ---- GUI mode --------------------------------------------------------
     auto application = std::make_unique<rats::app::Application>(std::move(options));
+    // Blocking pre-start migrations run inside start(), before MainWindow exists
+    // and before the event loop is entered — the splash draws itself from inside
+    // that call, and stays hidden when there is no migration to run.
+    MigrationProgressWindow migrationSplash(application->migrations(), application->config()->darkMode());
     if (!application->start()) {
         qCritical() << "Failed to start application";
         return 1;
