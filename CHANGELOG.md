@@ -2,6 +2,48 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.3.0](https://github.com/DEgITx/rats-search/compare/v2.2.7...v2.3.0) (2026-08-30)
+
+
+### 🐛 Bug Fixes
+
+
+- **log:** Move log size to setting([9ee4399](https://github.com/DEgITx/rats-search/commit/9ee4399b8437a1ee322ed96e6efe2626d7f2104a)) by @DEgITx
+- **db:** Fix missing torrent files in some cases([f857855](https://github.com/DEgITx/rats-search/commit/f85785555fafb2e26080aa290ea1f083bb7ee289)) by @DEgITx
+- **db:** Dedup not worked for many torrents adding([14ef067](https://github.com/DEgITx/rats-search/commit/14ef067827dea8c77bb1bb22cdb3315b87c4630d)) by @DEgITx
+- **storage:** Don't perform storage expand on vote([843eec0](https://github.com/DEgITx/rats-search/commit/843eec02262f69112cf643edc21a530d83bf21ac)) by @DEgITx
+- **p2p:** Fix dropping/up connection hang([f74678a](https://github.com/DEgITx/rats-search/commit/f74678a07e2a1ffed9b7486fa8ded3cf22604960)) by @DEgITx
+- **core:** Updated to new librats([690f69a](https://github.com/DEgITx/rats-search/commit/690f69a4c1f236322bbf60c3b2d9dc2cf4841814)) by @DEgITx
+- **export:** Fix export/import of db and sync from peer([c44f2a5](https://github.com/DEgITx/rats-search/commit/c44f2a5a46bc6e3cf617cfe56db18e42322fa9d2)) by @DEgITx
+- **ci:** Fix logs in ci([1aed5e5](https://github.com/DEgITx/rats-search/commit/1aed5e51ddba199049be22031ed3afd93a291bfe)) by @DEgITx
+- **windows:** Db stability([12061ce](https://github.com/DEgITx/rats-search/commit/12061cee7b14fc135cdbb74f9163c4c96cccb275)) by @DEgITx
+
+
+### 📚 Documentation
+
+
+- Update CHANGELOG.md for v2.2.7([614379b](https://github.com/DEgITx/rats-search/commit/614379bcbaf5de09cda0bf5b56e532cbb376e1bc)) by @github-actions[bot]
+
+
+### 🚀 Features
+
+
+- **performance:** Increase export/import and db performance overall for big >1m([01c05f3](https://github.com/DEgITx/rats-search/commit/01c05f35f1bbd8e09374d63e2e39dbff2f0424a7)) by @DEgITx
+- **migrator:** Add visual migration ui([9739cdf](https://github.com/DEgITx/rats-search/commit/9739cdfd3bf25534cdd632048fdeccf96b77a702)) by @DEgITx
+
+
+
+
+### 👥 Contributors
+
+
+
+- [@DEgITx](https://github.com/DEgITx) — 11 commits
+
+
+- [@github-actions[bot]](https://github.com/github-actions[bot]) — 1 commit
+
+
 ## [2.2.7](https://github.com/DEgITx/rats-search/compare/v2.2.6...v2.2.7) (2026-08-23)
 
 
