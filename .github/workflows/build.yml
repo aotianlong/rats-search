@@ -100,13 +100,20 @@ jobs:
         run: |
           $testDir = "build/tests"
           $qtRoot = "$env:QT_ROOT_DIR"
-          
-          # Copy libmysql.dll next to test executables
-          $libmysql = "imports/win/x64/libmysql.dll"
-          if (Test-Path $libmysql) {
-            Copy-Item $libmysql -Destination $testDir -Force
-            Write-Host "Copied libmysql.dll to $testDir"
+
+          # The QMYSQL plugin must load the libmysql.dll it was built against --
+          # the one that came with the driver above, never the copy Manticore
+          # ships in imports/ for its own tools. A DLL next to the executable
+          # wins the search over Qt's bin directory, so the wrong one here makes
+          # the plugin misread result metadata: string columns arrive typed as
+          # integers, `SELECT *` loses the `hash` column, and test_manticore_queries
+          # fails intermittently with unreachable file lists.
+          $libmysql = "$qtRoot/bin/libmysql.dll"
+          if (-not (Test-Path $libmysql)) {
+            throw "libmysql.dll not found at $libmysql - the 'Download Qt MySQL plugin' step must run first"
           }
+          Copy-Item $libmysql -Destination $testDir -Force
+          Write-Host "Copied libmysql.dll $((Get-Item $libmysql).VersionInfo.FileVersion) to $testDir"
 
       - name: Run tests
         run: |
@@ -117,10 +124,13 @@ jobs:
         shell: powershell
         run: |
           $binDir = "build/bin"
-          
-          # Copy all Manticore files for Windows x64
+
+          # Copy all Manticore files for Windows x64. This drops Manticore's own
+          # libmysql.dll into the package too; the "Copy Qt MySQL plugin" step
+          # below must run after this one to replace it with the driver's copy,
+          # or the shipped app reads string columns as integers (see that step).
           Copy-Item "imports/win/x64/*" -Destination $binDir -Force -Recurse
-          
+
           Write-Host "Copied Manticore binaries:"
           Get-ChildItem $binDir | ForEach-Object { Write-Host $_.Name }
 
@@ -140,11 +150,17 @@ jobs:
             Write-Host "Copied: $($_.Name)"
           }
           
-          # Copy libmysql.dll to bin directory
-          if (Test-Path "$qtRoot/bin/libmysql.dll") {
-            Copy-Item "$qtRoot/bin/libmysql.dll" -Destination $binDir -Force
-            Write-Host "Copied libmysql.dll to bin"
+          # Overwrite the libmysql.dll the Manticore copy step just put here with
+          # the one the QMYSQL plugin was built against. Not optional: leaving
+          # Manticore's in place makes the plugin read MYSQL_FIELD at the wrong
+          # offsets, so string columns come back typed as integers and torrents
+          # ship with empty file lists -- silently, with nothing in the log.
+          $libmysql = "$qtRoot/bin/libmysql.dll"
+          if (-not (Test-Path $libmysql)) {
+            throw "libmysql.dll not found at $libmysql - refusing to package Manticore's copy"
           }
+          Copy-Item $libmysql -Destination $binDir -Force
+          Write-Host "Copied libmysql.dll $((Get-Item $libmysql).VersionInfo.FileVersion) to bin"
 
       - name: Get version
         id: version

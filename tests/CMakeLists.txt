@@ -54,16 +54,55 @@ add_rats_test(test_content_classifier ${CMAKE_SOURCE_DIR}/resources/resources.qr
 # data layer (Manticore + Database + TorrentRepository).
 add_rats_test(test_manticore_queries)
 
-# Copy libmysql.dll next to test executables so the QMYSQL driver can load
+# Copy libmysql.dll next to test executables so the QMYSQL driver can load.
+#
+# It has to be the libmysql the QMYSQL plugin was *built against*. Manticore
+# ships its own copy in imports/ for its own tools (8.3 at the time of writing)
+# while the prebuilt Qt driver comes with 8.4, and a DLL next to the executable
+# wins the search over Qt's bin directory -- so copying Manticore's here made
+# the plugin read MYSQL_FIELD at the wrong offsets. It then reports string
+# columns with an integer type: `SELECT * FROM files` handed back `hash` as
+# uint 0, every hash verification rejected the row as somebody else's, and file
+# lists came back empty with no error anywhere. Measured on this repo: with
+# Manticore's 8.3 next to the binary test_manticore_queries failed 5 runs out of
+# 12, with the driver's 8.4 zero out of 45.
+#
+# So take Qt's copy and never substitute Manticore's: no library at all fails
+# loudly ("can not load requested driver 'QMYSQL'"), the wrong one fails
+# silently and intermittently.
 if(WIN32)
-    set(LIBMYSQL_PATH "${CMAKE_SOURCE_DIR}/imports/win/x64/libmysql.dll")
-    if(EXISTS "${LIBMYSQL_PATH}")
+    set(LIBMYSQL_CANDIDATES "")
+    if(DEFINED QT6_INSTALL_PREFIX AND DEFINED QT6_INSTALL_BINS)
+        list(APPEND LIBMYSQL_CANDIDATES "${QT6_INSTALL_PREFIX}/${QT6_INSTALL_BINS}/libmysql.dll")
+    endif()
+    if(TARGET Qt6::Core)
+        get_target_property(QT_CORE_LOCATION Qt6::Core LOCATION)
+        if(QT_CORE_LOCATION)
+            get_filename_component(QT_BIN_DIR "${QT_CORE_LOCATION}" DIRECTORY)
+            list(APPEND LIBMYSQL_CANDIDATES "${QT_BIN_DIR}/libmysql.dll")
+        endif()
+    endif()
+
+    set(LIBMYSQL_PATH "")
+    foreach(candidate IN LISTS LIBMYSQL_CANDIDATES)
+        if(EXISTS "${candidate}")
+            set(LIBMYSQL_PATH "${candidate}")
+            break()
+        endif()
+    endforeach()
+
+    if(LIBMYSQL_PATH)
+        message(STATUS "Integration tests: libmysql.dll from ${LIBMYSQL_PATH}")
         add_custom_command(TARGET test_manticore_queries POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
                 "${LIBMYSQL_PATH}"
                 "$<TARGET_FILE_DIR:test_manticore_queries>"
             COMMENT "Copying libmysql.dll for integration tests..."
         )
+    else()
+        message(STATUS "Integration tests: no libmysql.dll next to Qt. Copy the one that ships with the "
+                       "QMYSQL driver next to the test binary by hand -- NOT the one in imports/, which "
+                       "belongs to Manticore and makes the plugin misread result metadata.")
     endif()
 endif()
 
