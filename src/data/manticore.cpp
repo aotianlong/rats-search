@@ -754,10 +754,12 @@ index torrents
 {
     type = rt
     path = %1/torrents
-    
-    min_prefix_len = 3
+
+    min_prefix_len = 1
+    ngram_len = 2
+    ngram_chars = U+4E00..U+9FFF
     expand_keywords = 1
-    
+
     rt_attr_string = hash
     rt_attr_string = name
     rt_field = nameIndex
@@ -784,7 +786,10 @@ index files
 {
     type = rt
     path = %1/files
-    
+
+    ngram_len = 2
+    ngram_chars = U+4E00..U+9FFF
+
     rt_field = path
     rt_attr_string = hash
     rt_field = size
