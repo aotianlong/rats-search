@@ -2,6 +2,7 @@
 #define RATS_REST_API_ROUTER_H
 
 #include "common/result.h"
+#include "services/search_service.h"
 
 #include <QHash>
 #include <QJsonObject>
@@ -45,6 +46,14 @@ private:
     // the master event names/shapes so existing API clients keep working.
     void wireEvents();
     void add(const QString& name, Handler handler);
+
+    // Shared implementation behind search.live / search.live.files. Runs the
+    // local index, broadcasts the query to every connected rats-search peer,
+    // waits up to `timeoutMs` milliseconds for replies (deduped by hash,
+    // preferring local over remote), and answers with the merged list.
+    void runLiveSearch(const service::SearchService::Request& req,
+                       const QString& mode, int timeoutMs,
+                       ResultCallback respond);
 
     app::Application* app_;
     QHash<QString, Handler> handlers_;

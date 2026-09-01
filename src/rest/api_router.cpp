@@ -42,11 +42,13 @@
 #endif
 
 #include <QDateTime>
+#include <QHash>
 #include <QJsonArray>
 #include <QJsonValue>
 #include <QRegularExpression>
 #include <QStringList>
 #include <QTimer>
+#include <QUuid>
 #include <memory>
 
 namespace rats::rest {
@@ -355,6 +357,38 @@ void ApiRouter::registerMethods()
         for (const domain::SearchHit& hit : hits)
             results.append(domain::codec::toJson(hit, { /*includeFiles*/ true }));
         respond(Result::success(results));
+    });
+
+    // -----------------------------------------------------------------------
+    // Live (local + P2P fan-out) search
+    //
+    // search.live / search.live.files run the local index and simultaneously fan
+    // out the query to every connected rats-search peer; replies stream back
+    // asynchronously through peer::PeerApi signals, are deduped by hash (local
+    // wins), and the merged list is returned once the configurable timeout
+    // fires. The classic "no peers / no remote hits" path degrades gracefully
+    // to the local result — same envelope shape as search.torrents / search.files,
+    // plus a `source` field on every entry so callers can tell where each hit
+    // came from.
+    // -----------------------------------------------------------------------
+    add("search.live", [this](const QJsonObject& params, const ResultCallback& respond) {
+        const service::SearchService::Request req = buildSearchRequest(params);
+        if (req.query.isEmpty()) {
+            respond(Result::failure("Query too short"));
+            return;
+        }
+        const int timeoutMs = qBound(500, params.value(QStringLiteral("timeoutMs")).toInt(3000), 10000);
+        runLiveSearch(req, QStringLiteral("torrents"), timeoutMs, respond);
+    });
+
+    add("search.live.files", [this](const QJsonObject& params, const ResultCallback& respond) {
+        const service::SearchService::Request req = buildSearchRequest(params);
+        if (req.query.length() < 2) {
+            respond(Result::failure("Query too short"));
+            return;
+        }
+        const int timeoutMs = qBound(500, params.value(QStringLiteral("timeoutMs")).toInt(3000), 10000);
+        runLiveSearch(req, QStringLiteral("files"), timeoutMs, respond);
     });
 
     add("search.top", [this](const QJsonObject& params, const ResultCallback& respond) {
@@ -920,6 +954,162 @@ void ApiRouter::registerMethods()
 
         svc->checkForUpdates();
     });
+}
+
+void ApiRouter::runLiveSearch(const service::SearchService::Request& req,
+                              const QString& mode, int timeoutMs,
+                              ResultCallback respond)
+{
+    // Shared across async callbacks — must outlive runLiveSearch's stack frame.
+    auto byHash = std::make_shared<QHash<QString, QJsonObject>>();
+
+    // 1) Local index (synchronous, runs on the main thread).
+    const auto localHits = (mode == QLatin1String("files"))
+        ? app_->search()->searchFiles(req)
+        : app_->search()->searchTorrents(req);
+    for (const domain::SearchHit& hit : localHits) {
+        const QJsonObject j = (mode == QLatin1String("files"))
+            ? domain::codec::toJson(hit, { /*includeFiles*/ true })
+            : domain::codec::toJson(hit);
+        const QString hash = j.value(QStringLiteral("hash")).toString();
+        if (hash.isEmpty())
+            continue;
+        QJsonObject entry = j;
+        entry[QStringLiteral("source")] = QStringLiteral("local");
+        byHash->insert(hash, entry);
+    }
+
+    // 2) P2P fan-out (asynchronous, bounded by timeoutMs).
+    //
+    // Skip silently when the user has P2P turned off or we have no transport
+    // up — a "live" call is allowed to degrade into the local result without
+    // a feature flag, but a disabled P2P feature stops the broadcast entirely.
+    const bool p2pEnabled = app_->config() && app_->config()->p2pReplication();
+    const bool canFanOut = p2pEnabled
+        && app_->transport() && app_->transport()->isRunning()
+        && app_->peerApi() != nullptr;
+    bool fannedOut = false;
+
+    if (canFanOut) {
+        // Correlation token; the responder echoes it back on each reply so we
+        // can ignore hits that belong to other concurrent searches.
+        const QString searchId = QUuid::createUuid().toString(QUuid::WithoutBraces);
+
+        auto done = std::make_shared<bool>(false);
+        auto conns = std::make_shared<QList<QMetaObject::Connection>>();
+        QTimer* timer = new QTimer(this);
+        timer->setSingleShot(true);
+
+        auto finish = [=]() mutable {
+            if (*done)
+                return;
+            *done = true;
+            timer->stop();
+            timer->deleteLater();
+            for (const QMetaObject::Connection& c : *conns)
+                QObject::disconnect(c);
+            conns->clear();
+
+            // DHT fallback: a bare info-hash / magnet query with no local or
+            // peer hits may still resolve via the DHT metadata lookup. Same
+            // semantics as search.torrents (peer mode), no P2P fan-out for
+            // file mode (handleSearchFilesRequest already short-circuits to
+            // local index only, so the response array stays a flat list).
+            const QString dhtHash = service::SearchService::extractInfoHash(req.query);
+            if (byHash->isEmpty() && !dhtHash.isEmpty() && mode == QLatin1String("torrents")) {
+                dhtLookup(this, app_, dhtHash, /*includeFiles*/ false,
+                    /*asArray*/ true, std::move(respond));
+                return;
+            }
+
+            QJsonArray merged;
+            for (auto it = byHash->cbegin(); it != byHash->cend(); ++it)
+                merged.append(it.value());
+
+            qInfo() << "[ApiRouter] search.live mode=" << mode
+                    << "q=" << req.query
+                    << "local=" << localHits.size()
+                    << "merged=" << merged.size()
+                    << "timeoutMs=" << timeoutMs;
+            respond(Result::success(merged));
+        };
+
+        auto onRemote = [searchId, byHash, finish](const QString& qid,
+                                                    const QJsonArray& torrents) {
+            if (qid != searchId)
+                return; // ignore other concurrent searches' replies
+            for (const QJsonValue& v : torrents) {
+                QJsonObject j = v.toObject();
+                const QString hash = j.value(QStringLiteral("hash")).toString();
+                if (hash.isEmpty() || byHash->contains(hash))
+                    continue; // dedup, prefer local
+                const QString peerId = j.value(QStringLiteral("peer")).toString();
+                QJsonObject entry = j;
+                entry[QStringLiteral("source")] = peerId.isEmpty()
+                    ? QStringLiteral("peer")
+                    : QStringLiteral("peer:%1").arg(peerId.left(8));
+                byHash->insert(hash, entry);
+            }
+            // Don't finish early: the request asks for N-ms fan-out, not
+            // first-reply wins. The timer is the only path to respond.
+            Q_UNUSED(finish);
+        };
+
+        // Both signals are safe to connect (peerApi emits them on the main
+        // thread; we run on the main thread). The lambda captures the same
+        // searchId filter so a torrent-mode broadcast doesn't accidentally
+        // pick up file-mode replies (and vice versa).
+        conns->append(connect(app_->peerApi(), &peer::PeerApi::remoteSearchResults,
+            this, onRemote));
+        conns->append(connect(app_->peerApi(), &peer::PeerApi::remoteFileSearchResults,
+            this, onRemote));
+        conns->append(connect(timer, &QTimer::timeout, this, [finish]() mutable { finish(); }));
+
+        // Shape mirrors the GUI broadcast (mainwindow.cpp:880-893) plus the
+        // new searchId so peers can echo it back.
+        QJsonObject msg;
+        msg[QStringLiteral("searchId")] = searchId;
+        msg[QStringLiteral("query")] = req.query;
+        msg[QStringLiteral("text")] = req.query;
+        msg[QStringLiteral("limit")] = req.limit;
+        msg[QStringLiteral("orderBy")] = req.sort;
+        msg[QStringLiteral("orderDesc")] = req.descending;
+        msg[QStringLiteral("safeSearch")] = req.safeSearch;
+        if (!req.contentType.isEmpty())
+            msg[QStringLiteral("type")] = req.contentType;
+        app_->transport()->broadcastMessage(
+            mode == QLatin1String("files") ? QStringLiteral("searchFiles")
+                                           : QStringLiteral("searchTorrent"),
+            msg);
+
+        fannedOut = true;
+        timer->start(timeoutMs);
+    }
+
+    if (!fannedOut) {
+        // Either P2P is disabled or transport is not up — answer with the
+        // local result immediately (same shape as search.torrents / search.files
+        // plus a `source` field set to "local").
+        QJsonArray merged;
+        for (auto it = byHash->cbegin(); it != byHash->cend(); ++it)
+            merged.append(it.value());
+
+        // Mirror the DHT fallback path from search.torrents for the no-P2P case.
+        const QString dhtHash = service::SearchService::extractInfoHash(req.query);
+        if (merged.isEmpty() && !dhtHash.isEmpty() && mode == QLatin1String("torrents")) {
+            dhtLookup(this, app_, dhtHash, /*includeFiles*/ false,
+                /*asArray*/ true, std::move(respond));
+            return;
+        }
+
+        qInfo() << "[ApiRouter] search.live mode=" << mode
+                << "q=" << req.query
+                << "local=" << localHits.size()
+                << "merged=" << merged.size()
+                << "timeoutMs=" << timeoutMs
+                << "fannedOut=false";
+        respond(Result::success(merged));
+    }
 }
 
 } // namespace rats::rest

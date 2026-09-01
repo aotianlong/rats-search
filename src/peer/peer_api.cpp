@@ -125,8 +125,16 @@ void PeerApi::handleSearchRequest(const QString& peerId, const QJsonObject& data
     const QVector<domain::SearchHit> hits = app_->search()->searchTorrents(req);
     qInfo() << "[PeerApi] search" << req.query << "->" << hits.size() << "results for" << shortId(peerId);
 
-    for (const domain::SearchHit& hit : hits)
-        app_->transport()->sendMessage(peerId, "searchTorrent_response", domain::codec::toJson(hit.torrent));
+    // Echo back the searchId so the requester can correlate this reply with
+    // the originating broadcast when several searches overlap. Newer peers
+    // always send it; older peers send nothing and we leave searchId empty.
+    const QString searchId = data.value(QStringLiteral("searchId")).toString();
+    for (const domain::SearchHit& hit : hits) {
+        QJsonObject payload = domain::codec::toJson(hit.torrent);
+        if (!searchId.isEmpty())
+            payload[QStringLiteral("searchId")] = searchId;
+        app_->transport()->sendMessage(peerId, "searchTorrent_response", payload);
+    }
 }
 
 void PeerApi::handleSearchFilesRequest(const QString& peerId, const QJsonObject& data)
@@ -138,6 +146,7 @@ void PeerApi::handleSearchFilesRequest(const QString& peerId, const QJsonObject&
     const QVector<domain::SearchHit> hits = app_->search()->searchFiles(req);
     qInfo() << "[PeerApi] searchFiles" << req.query << "->" << hits.size() << "results for" << shortId(peerId);
 
+    const QString searchId = data.value(QStringLiteral("searchId")).toString();
     for (const domain::SearchHit& hit : hits) {
         QJsonObject result = domain::codec::toJson(hit);
         // Legacy peers read matching file paths from the "path" key.
@@ -147,6 +156,8 @@ void PeerApi::handleSearchFilesRequest(const QString& peerId, const QJsonObject&
                 paths.append(p);
             result["path"] = paths;
         }
+        if (!searchId.isEmpty())
+            result[QStringLiteral("searchId")] = searchId;
         app_->transport()->sendMessage(peerId, "searchFiles_response", result);
     }
 }
@@ -275,12 +286,20 @@ void PeerApi::handleSearchResult(const QString& peerId, const QJsonObject& data)
     QJsonObject result = data;
     result["remote"] = true;
     result["peer"] = peerId;
-    emit remoteSearchResults(QString(), QJsonArray { result });
+    // Echo the searchId the peer put on the response, if any. Empty for older
+    // peers / legacy GUI; consumers that want per-request correlation filter on
+    // this themselves.
+    const QString searchId = data.value(QStringLiteral("searchId")).toString();
+    emit remoteSearchResults(searchId, QJsonArray { result });
 }
 
 void PeerApi::handleSearchFilesResult(const QString& peerId, const QJsonObject& data)
 {
-    const QString query = data["text"].toString();
+    // Prefer the explicit searchId echoed by newer peers; fall back to the
+    // legacy text field for older peers so file-search correlation still works.
+    QString query = data.value(QStringLiteral("searchId")).toString();
+    if (query.isEmpty())
+        query = data.value(QStringLiteral("text")).toString();
 
     QJsonObject item = data;
     item["isFileMatch"] = true;
