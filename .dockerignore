@@ -1,0 +1,17 @@
+data/
+build/
+build-*/
+legacy/
+docs/
+tests/
+installer/
+.github/
+
+# The Linux x64 image only uses these three Manticore binaries.
+imports/arm/
+imports/arm64/
+imports/darwin/
+imports/win/
+imports/linux/arm64/
+imports/linux/ia32/
+.git/modules/imports/
